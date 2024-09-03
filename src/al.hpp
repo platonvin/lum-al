@@ -332,7 +332,10 @@ public:
     void createSwapchainImageViews();
     VkAttachmentLoadOp  getOpLoad (LoadStoreOp op);
     VkAttachmentStoreOp getOpStore(LoadStoreOp op);
+
+    void deviceWaitIdle();
     void createRenderPass(vector<AttachmentDescription> attachments, vector<SubpassAttachments> subpasses, RenderPass* rpass);
+    void destroyRenderPass(RenderPass* rpass);
 
     VkFormat findSupportedFormat (vector<VkFormat> candidates, VkImageType type, VkImageTiling tiling, VkImageUsageFlags usage);
 

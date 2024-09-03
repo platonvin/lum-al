@@ -90,23 +90,31 @@ void Renderer::deleteBuffers (Buffer* buffer) {
 }
 
 void Renderer::cleanup() {
+    vkDeviceWaitIdle(device);
+println
+    
     for (auto [info, sampler]: samplerMap) {
         vkDestroySampler(device, sampler, NULL);
     }
+println
 
     vkDestroyDescriptorPool (device, descriptorPool, NULL);
     for (int i = 0; i < settings.fif; i++) {
         vkDestroySemaphore (device, imageAvailableSemaphores[i], NULL);
         vkDestroySemaphore (device, renderFinishedSemaphores[i], NULL);
         vkDestroyFence (device, frameInFlightFences[i], NULL);
-        vkDestroyQueryPool (device, queryPoolTimestamps[i], NULL);
+        if(settings.profile){
+            vkDestroyQueryPool (device, queryPoolTimestamps[i], NULL);
+        }
     }
     vkDestroyCommandPool (device, commandPool, NULL);
+println
 
     for (auto img : swapchainImages) {
         vkDestroyImageView (device, img.view, NULL);
     }
     vkDestroySwapchainKHR (device, swapchain, NULL);
+println
 
     for (int i = 0; i < settings.fif + 1; i++) {
         processDeletionQueues();

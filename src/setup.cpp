@@ -126,6 +126,15 @@ VkAttachmentStoreOp Renderer::getOpStore(LoadStoreOp op){
           crash(wrong load op);
     }
 }
+void Renderer::destroyRenderPass(RenderPass* rpass){
+    for (auto framebuffer : rpass->framebuffers) {
+        vkDestroyFramebuffer (device, framebuffer, NULL);
+    }
+    vkDestroyRenderPass(device, rpass->rpass, NULL);
+}
+void Renderer::deviceWaitIdle(){
+    vkDeviceWaitIdle(device);
+}
 void Renderer::createRenderPass(vector<AttachmentDescription> attachments, vector<SubpassAttachments> sas, RenderPass* rpass){
     vector<VkAttachmentDescription> adescs(attachments.size());
     vector<VkAttachmentReference  > arefs(attachments.size());
