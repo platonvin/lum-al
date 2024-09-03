@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <defines/vk_enum_string_helper.h> //idk why but it is neither shipped with Linux Vulkan SDK nor bundled in vcpkg vulkan-sdk-components
 
 #define KEND  "\x1B[0m"
 #define KRED  "\x1B[31m"
@@ -13,28 +14,11 @@
 
 #ifdef _PRINTLINE
 #define println printf(KGRN "%s:%d: Fun: %s\n" KEND, __FILE__, __LINE__, __FUNCTION__);
+#define printl(x) std::cout << #x " "<< x << std::endl;
 #else 
 #define println do {} while(0);
+#define printl(x) do {} while(0);
 #endif
-
-#define printl(x) std::cout << #x " "<< x << std::endl;
-
-// #include <stdint.h>
-// #include <stdfloat>
-
-// typedef int8_t    i8;
-// typedef int16_t   i16;
-// typedef int32_t   i32;
-// typedef int64_t   i64;
-// typedef uint8_t   u8;
-// typedef uint16_t  u16;
-// typedef uint32_t  u32;
-// typedef uint64_t  u64;
-
-// typedef _Float16  f16;
-// typedef _Float32  f32;
-// typedef _Float64  f64;
-// typedef _Float128 f128;
 
 #define STRINGIZE(x) STRINGIZE2(x)
 #define STRINGIZE2(x) #x
@@ -63,7 +47,7 @@
 #define calloc(x,y) ({void* res_ptr =(calloc)(x,y); assert(res_ptr!=NULL && __LINE_STRING__); res_ptr;})
 #endif
 
-#define PLACE_TIMESTAMP() do {\
+#define PLACE_TIMESTAMP(commandBuffer) do {\
     if(settings.profile){\
         timestampNames[currentTimestamp] = __func__;\
         vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPoolTimestamps[currentFrame], currentTimestamp++);\

@@ -3,24 +3,22 @@
 #include <iostream>
 #include <optional>
 #include <vector>
-
-// #undef __STRICT_ANSI__
+#include <unordered_map>
+#include <functional>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <glm/ext/matrix_transform.hpp>
 
 #include <volk.h>
-// #include <vulkan/vulkan.h>
-#include <vk_enum_string_helper.h> //idk why but it is neither shipped with Linux Vulkan SDK nor bundled in vulkan-sdk-components
 #include <vk_mem_alloc.h>
 #include <GLFW/glfw3.h>
+#include "ringbuffer.hpp"
 
 using std::vector;
 using std::cout;
 using std::tuple;
 using std::tie;
-// using std::set;
 using glm::u8, glm::u16, glm::u16, glm::u32;
 using glm::i8, glm::i16, glm::i32;
 using glm::f32, glm::f64;
@@ -37,8 +35,6 @@ using glm::dvec2,glm::dvec3,glm::dvec4;
 using glm::mat, glm::mat2, glm::mat3, glm::mat4;
 using glm::dmat2, glm::dmat3, glm::dmat4;
 
-const int MAX_FRAMES_IN_FLIGHT = 2;
-
 typedef struct Buffer {
     VkBuffer buffer;
     VmaAllocation alloc;
@@ -54,21 +50,6 @@ typedef struct Image {
     VkImageAspectFlags aspect;
     VkExtent3D extent;
 } Image;
-
-typedef struct IndexedVertices {
-    vector<Buffer> indexes;
-    u32 icount;
-} IndexedVertices;
-
-typedef struct NonIndexedVertices {
-    vector<Buffer> vertices;
-    u32 vcount;
-} NonIndexedVertices;
-
-typedef struct FaceBuffers {
-    IndexedVertices Pzz, Nzz, zPz, zNz, zzP, zzN;
-    vector<Buffer> vertexes;
-} FaceBuffers;
 
 typedef struct ImageDeletion {
     Image image;
@@ -112,39 +93,38 @@ enum LoadStoreOp {
 };
 const VkStencilOpState NO_STENCIL = {};
 
-typedef struct ShaderStage {
-    const char* src;
-    VkShaderStageFlagBits stage;
-} ShaderStage;
 typedef struct RasterPipe {
     VkPipeline line;
     VkPipelineLayout lineLayout;
 
-    vector<VkDescriptorSet> sets;
+    ring<VkDescriptorSet> sets;
     VkDescriptorSetLayout setLayout;
 
     VkRenderPass renderPass; //we dont really need to store it in here but why not
     i32 subpassId;
 } RasterPipe;
-
 typedef struct ComputePipe {
     VkPipeline line;
     VkPipelineLayout lineLayout;
 
-    vector<VkDescriptorSet> sets;
+    ring<VkDescriptorSet> sets;
     VkDescriptorSetLayout setLayout;
 } ComputePipe;
 
 typedef struct AttachmentDescription {
-    Image* image;
+    ring<Image> images;
     LoadStoreOp load,store, sload, sstore;
+    VkClearValue clear = {};
     VkImageLayout finalLayout = VK_IMAGE_LAYOUT_GENERAL;
 }AttachmentDescription;
 typedef struct SubpassAttachments {
     vector<RasterPipe*> pipes;
-    vector<Image*> a_input;
-    vector<Image*> a_color;
-    Image* a_depth;
+    // vector<Image*> a_input;
+    vector<ring<Image>> a_input;
+    // vector<Image*> a_color;
+    vector<ring<Image>> a_color;
+    // Image* a_depth;
+    ring<Image> a_depth;
 }SubpassAttachments;
 typedef struct SubpassAttachmentRefs {
     vector<VkAttachmentReference> a_input;
@@ -152,17 +132,54 @@ typedef struct SubpassAttachmentRefs {
     VkAttachmentReference a_depth;
 }SubpassAttachmentRefs;
 
-//problem with such abstractions in vulkan is that they almost always have to be extended to a point where they make no sense
-//pipeline with extra info for subpass creation
-typedef struct subPass {
-    VkPipeline pipe;
-    VkPipelineLayout pipeLayout;
+typedef struct RenderPass {
+    vector<VkClearValue> clear_colors;
+    ring<VkFramebuffer> framebuffers;
 
-    VkDescriptorSetLayout dsetLayout;
-    vector<VkDescriptorSet> descriptors;
+    VkExtent2D extent;
+    VkRenderPass rpass; 
+} RenderPass;
 
-    VkRenderPass rpass; //we dont really need to store it in here but why not
-} subPass;
+enum RelativeDescriptorPos {
+    RD_NONE, //what?
+    RD_PREVIOUS, //Relatove Descriptor position previous - for accumulators
+    RD_CURRENT, //Relatove Descriptor position matching - common cpu-paired
+    RD_FIRST, //Relatove Descriptor position first    - for gpu-only
+};
+#define NO_SAMPLER ((VkSampler)(0))
+#define NO_LAYOUT ((VkImageLayout)(0))
+
+typedef struct ShaderStage {
+    const char* src;
+    VkShaderStageFlagBits stage;
+} ShaderStage;
+typedef struct DescriptorInfo {
+    VkDescriptorType type;
+    RelativeDescriptorPos relativePos;
+    ring<Buffer> buffers;
+    ring<Image> images;
+    VkSampler imageSampler;
+    VkImageLayout imageLayout; //ones that will be in use, not current
+    VkShaderStageFlags stages;
+} DescriptorInfo;
+typedef struct ShortDescriptorInfo {
+    VkDescriptorType type;
+    VkShaderStageFlags stages;
+} ShortDescriptorInfo;
+typedef struct DelayedDescriptorSetup {
+    VkDescriptorSetLayout* setLayout;
+    ring<VkDescriptorSet>* sets;
+    vector<DescriptorInfo> descriptions;
+    VkShaderStageFlags stages;
+    VkDescriptorSetLayoutCreateFlags createFlags;
+} DelayedDescriptorSetup;
+
+#define MAKE_DESCRIPTOR_TYPE(name)\
+    i32 name##_COUNTER = 0;
+typedef struct DescriptorCounter{
+    #include "defines/descriptor_types.hpp"
+} DescriptorCounter;
+#undef MAKE_DESCRIPTOR_TYPE
 
 typedef struct Window {
     GLFWwindow* pointer;
@@ -191,42 +208,14 @@ typedef struct SwapChainSupportDetails {
     }
 } SwapChainSupportDetails;
 
-enum RelativeDescriptorPos {
-    RD_NONE, //what?
-    RD_PREVIOUS, //Relatove Descriptor position previous - for accumulators
-    RD_CURRENT, //Relatove Descriptor position matching - common cpu-paired
-    RD_FIRST, //Relatove Descriptor position first    - for gpu-only
-};
-#define NO_SAMPLER ((VkSampler)(0))
-#define NO_LAYOUT ((VkImageLayout)(0))
-
-typedef struct DescriptorInfo {
-    VkDescriptorType type;
-    RelativeDescriptorPos relativePos;
-    vector<Buffer> buffers;
-    vector<Image> images;
-    VkSampler imageSampler;
-    VkImageLayout imageLayout; //ones that will be in use, not current
-    VkShaderStageFlags stages;
-} DescriptorInfo;
-typedef struct DelayedDescriptorSetup {
-    VkDescriptorSetLayout* setLayout;
-    vector<VkDescriptorSet>* sets;
-    vector<DescriptorInfo> descriptions;
-    VkShaderStageFlags stages;
-    VkDescriptorSetLayoutCreateFlags createFlags;
-} DelayedDescriptorSetup;
-
 typedef struct Settings {
     int timestampCount = 1024;
+    int fif = 2;
     bool vsync = false;
     bool fullscreen = false;
     bool debug = false;
     bool profile = false;
 } Settings;
-
-#include <unordered_map>
-#include <functional>
 
 //hash for VkSamplerCreateInfo
 struct VkSamplerCreateInfoHash {
@@ -271,10 +260,13 @@ struct VkSamplerCreateInfoEqual {
     }
 };
 
-// Define the unordered_map
+class DescriptorSetupBuilder;
 
-struct Renderer {
+class Renderer {
 public:
+    //syntactic sugar is bitter
+    Renderer() : descriptorBuilder(*this), pipeBuilder(*this), renderPassBuilder(*this) {};
+
     void init (Settings settings);
     void cleanup();
 
@@ -282,14 +274,15 @@ public:
     bool resized = false;
     Settings settings = {};
 
-    void start_frame();
+    void start_frame(vector<VkCommandBuffer> commandBuffers);
         void present();
-    void end_frame();
+    void end_frame(vector<VkCommandBuffer> commandBuffers);
 
-
+    void cmdDraw(VkCommandBuffer commandBuffer, u32 vertexCount, u32 instanceCount, u32 firstVertex, u32 firstInstance);
+    void cmdBeginRenderPass (VkCommandBuffer commandBuffer, RenderPass* rpass);
+    void cmdEndRenderPass (VkCommandBuffer commandBuffer, RenderPass* rpass);
     void cmdBindPipe (VkCommandBuffer commandBuffer, RasterPipe pipe);
     void cmdBindPipe (VkCommandBuffer commandBuffer, ComputePipe pipe);
-
     void cmdPipelineBarrier (VkCommandBuffer commandBuffer,
                              VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask,
                              VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
@@ -305,13 +298,14 @@ public:
     void cmdSetViewport(VkCommandBuffer commandBuffer, int width, int height);
     void cmdSetViewport(VkCommandBuffer commandBuffer, VkExtent2D extent);
 
-    template<class Vertex_T> vector<Buffer> createElemBuffers (Vertex_T* vertices, u32 count, u32 buffer_usage = 0);
-    template<class Vertex_T> vector<Buffer> createElemBuffers (vector<Vertex_T> vertices, u32 buffer_usage = 0);
+    template<class Vertex_T> ring<Buffer> createElemBuffers (Vertex_T* vertices, u32 count, u32 buffer_usage = 0);
+    template<class Vertex_T> ring<Buffer> createElemBuffers (vector<Vertex_T> vertices, u32 buffer_usage = 0);
 
     void createAllocator();
     void createWindow();
     void createInstance();
     void setupDebugMessenger();
+    void debugValidate(); // simple runtime validation if settings.debug
     void debugSetName();
     void createSurface();
     SwapChainSupportDetails querySwapchainSupport (VkPhysicalDevice);
@@ -328,7 +322,7 @@ public:
     void createSwapchainImageViews();
     VkAttachmentLoadOp  getOpLoad (LoadStoreOp op);
     VkAttachmentStoreOp getOpStore(LoadStoreOp op);
-    void createRenderPass(vector<AttachmentDescription> attachments, vector<SubpassAttachments> subpasses, VkRenderPass* rpass);
+    void createRenderPass(vector<AttachmentDescription> attachments, vector<SubpassAttachments> subpasses, RenderPass* rpass);
 
     VkFormat findSupportedFormat (vector<VkFormat> candidates, VkImageType type, VkImageTiling tiling, VkImageUsageFlags usage);
 
@@ -341,34 +335,115 @@ public:
     void destroyComputePipeline (ComputePipe* pipe);
 
     void createDescriptorPool();
-    void deferDescriptorSetup (VkDescriptorSetLayout* dsetLayout, vector<VkDescriptorSet>* descriptors, vector<DescriptorInfo> description, VkShaderStageFlags stages, VkDescriptorSetLayoutCreateFlags createFlags = 0);
-    void setupDescriptor (VkDescriptorSetLayout* dsetLayout, vector<VkDescriptorSet>* descriptors, vector<DescriptorInfo> description, VkShaderStageFlags stages);
-    vector<DelayedDescriptorSetup> delayed_descriptor_setups;
+    void deferDescriptorSetup (VkDescriptorSetLayout* dsetLayout, ring<VkDescriptorSet>* descriptors, vector<DescriptorInfo> description, VkShaderStageFlags stages, VkDescriptorSetLayoutCreateFlags createFlags = 0);
+    void setupDescriptor (VkDescriptorSetLayout* dsetLayout, ring<VkDescriptorSet>* descriptors, vector<DescriptorInfo> description, VkShaderStageFlags stages);
     void flushDescriptorSetup();
-
+    vector<DelayedDescriptorSetup> delayed_descriptor_setups;
     void createSamplers();
 
-    void deleteImages (vector<Image>* images);
+    class DescriptorSetupBuilder {
+    private:
+        VkDescriptorSetLayout* dsetLayout;
+        ring<VkDescriptorSet>* descriptors;
+        vector<DescriptorInfo> descriptions = {};
+        VkDescriptorSetLayoutCreateFlags createFlags = 0;
+        Renderer& renderer;
+    public:
+        DescriptorSetupBuilder(Renderer &renderer) : renderer(renderer) {}
+
+        DescriptorSetupBuilder& setLayout(VkDescriptorSetLayout* layout)               {dsetLayout = layout;      return *this;}
+        DescriptorSetupBuilder& setDescriptorSets(ring<VkDescriptorSet>* desc)         {descriptors = desc;       return *this;}
+        DescriptorSetupBuilder& setCreateFlags(VkDescriptorSetLayoutCreateFlags flags) {createFlags = flags;      return *this;}
+        DescriptorSetupBuilder& setDescriptions(vector<DescriptorInfo> const& descInfos)      {descriptions = descInfos; return *this;}
+        //descriptions are clear()ed, other state reamains
+        void defer() {
+            renderer.deferDescriptorSetup(dsetLayout, descriptors, descriptions, createFlags);
+            descriptions.clear();
+        }
+    };
+    class PipeBuilder {
+    private:
+        Renderer& renderer;
+        VkDescriptorSetLayout extra_dynamic_layout = {};
+        vector<ShaderStage> shader_stages;
+        vector<AttrFormOffs> attr_desc;
+        u32 stride = 0;
+        VkVertexInputRate input_rate = VK_VERTEX_INPUT_RATE_VERTEX;
+        VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        VkExtent2D extent = {0, 0};
+        vector<BlendAttachment> blends;
+        u32 push_size = 0;
+        DepthTesting depthTest = NO_DEPTH_TEST;
+        VkCullModeFlags culling = VK_CULL_MODE_NONE;
+        Discard discard = NO_DISCARD;
+        VkStencilOpState stencil = NO_STENCIL;
+        VkPipelineCreateFlags create_flags = 0;
+
+    public:
+        PipeBuilder(Renderer& renderer) : renderer(renderer) {}
+
+        PipeBuilder& setExtraDynamicLayout(VkDescriptorSetLayout layout)   {extra_dynamic_layout = layout;  return *this;}
+        PipeBuilder& setStride(u32 s)                                      {stride = s;                     return *this;}
+        PipeBuilder& setInputRate(VkVertexInputRate rate)                  {input_rate = rate;              return *this;}
+        PipeBuilder& setTopology(VkPrimitiveTopology topo)                 {topology = topo;                return *this;}
+        PipeBuilder& setExtent(VkExtent2D e)                               {extent = e;                     return *this;}
+        PipeBuilder& setPushConstantSize(u32 size)                         {push_size = size;               return *this;}
+        PipeBuilder& setDepthTesting(DepthTesting depth)                   {depthTest = depth;              return *this;}
+        PipeBuilder& setCulling(VkCullModeFlags cull)                      {culling = cull;                 return *this;}
+        PipeBuilder& setDiscard(Discard disc)                              {discard = disc;                 return *this;}
+        PipeBuilder& setStencil(VkStencilOpState st)                       {stencil = st;                   return *this;}
+        PipeBuilder& setCreateFlags(VkPipelineCreateFlags flags)           {create_flags = flags;           return *this;}
+        PipeBuilder& setAttributes(vector<AttrFormOffs> const& attributes) {attr_desc = attributes;         return *this;}
+        PipeBuilder& setBlends(vector<BlendAttachment> const& b)           {blends = b;                     return *this;}
+        PipeBuilder& setStages(vector<ShaderStage> const& stages)          {shader_stages = stages;         return *this;}
+
+        void buildRaster(RasterPipe*  pipe) {
+            renderer.createRasterPipeline(pipe, extra_dynamic_layout, shader_stages, attr_desc, stride, input_rate, topology, extent, blends, push_size, depthTest, culling, discard, stencil);
+        }
+        void buildCompute(ComputePipe* pipe) {
+            renderer.createComputePipeline(pipe, extra_dynamic_layout, shader_stages[0].src, push_size, create_flags);
+        }
+    };
+    class RenderPassBuilder {
+    private:
+        Renderer& renderer;                           // Reference to the renderer
+        vector<AttachmentDescription> attachments_;    // Attachments for the render pass
+        vector<SubpassAttachments> subpasses_;         // Subpasses for the render pass
+        vector<VkClearValue> clear_colors;
+
+    public:
+        RenderPassBuilder(Renderer& renderer) : renderer(renderer) {}
+
+        RenderPassBuilder& setAttachments(vector<AttachmentDescription> const& attachments) {attachments_ = attachments; return *this;}
+        RenderPassBuilder& setSubpasses(vector<SubpassAttachments> const& subpasses)        {subpasses_ = subpasses;     return *this;}
+        RenderPassBuilder& setClearColors(vector<VkClearValue> const& clears)               {clear_colors = clears;      return *this;}
+
+        void build(RenderPass* rpass) const {
+            renderer.createRenderPass(attachments_, subpasses_, rpass);
+        }
+    };
+    DescriptorSetupBuilder descriptorBuilder;
+    PipeBuilder pipeBuilder;
+    RenderPassBuilder renderPassBuilder;
+
+    void deleteImages (ring<Image>* images);
     void deleteImages (Image* images);
-    void deleteBuffers (vector<Buffer>* buffers);
+    void deleteBuffers (ring<Buffer>* buffers);
     void deleteBuffers (Buffer* buffers);
-    void createImageStorages (vector<Image>* images,
+    void createImageStorages (ring<Image>* images,
                                 VkImageType type, VkFormat format, VkImageUsageFlags usage, VmaMemoryUsage vma_usage, VmaAllocationCreateFlags vma_flags, VkImageAspectFlags aspect,
-                                uvec3 size, int mipmaps = 1, VkSampleCountFlagBits sample_count = VK_SAMPLE_COUNT_1_BIT);
+                                VkExtent3D size, int mipmaps = 1, VkSampleCountFlagBits sample_count = VK_SAMPLE_COUNT_1_BIT);
     void createImageStorages (Image* image,
                                 VkImageType type, VkFormat format, VkImageUsageFlags usage, VmaMemoryUsage vma_usage, VmaAllocationCreateFlags vma_flags, VkImageAspectFlags aspect,
-                                uvec3 size, int mipmaps = 1, VkSampleCountFlagBits sample_count = VK_SAMPLE_COUNT_1_BIT);
-    void createImageStoragesDepthStencil (vector<VkImage>* images, vector<VmaAllocation>* allocs, vector<VkImageView>* depthViews, vector<VkImageView>* stencilViews,
-            VkImageType type, VkFormat format, VkImageUsageFlags usage, VmaMemoryUsage vma_usage, VmaAllocationCreateFlags vma_flags, VkImageAspectFlags aspect, VkImageLayout layout, VkPipelineStageFlags pipeStage, VkAccessFlags access,
-            uvec3 size);
+                                VkExtent3D size, int mipmaps = 1, VkSampleCountFlagBits sample_count = VK_SAMPLE_COUNT_1_BIT);
     void generateMipmaps (VkCommandBuffer commandBuffer, VkImage image, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, VkImageAspectFlags aspect);
-    void createBufferStorages (vector<Buffer>* buffers, VkBufferUsageFlags usage, u32 size, bool host = false);
+    void createBufferStorages (ring<Buffer>* buffers, VkBufferUsageFlags usage, u32 size, bool host = false);
     void createBufferStorages (Buffer* buffer, VkBufferUsageFlags usage, u32 size, bool host = false);
     VkShaderModule createShaderModule (vector<char>* code);
-    void createFramebuffers (vector<VkFramebuffer>* framebuffers, vector<vector<Image>> imgs4views, VkRenderPass renderPass, u32 Width, u32 Height);
-    void createFramebuffers (vector<VkFramebuffer>* framebuffers, vector<vector<Image>> imgs4views, VkRenderPass renderPass, VkExtent2D extent);
+    void createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>> imgs4views, VkRenderPass renderPass, u32 Width, u32 Height);
+    void createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>> imgs4views, VkRenderPass renderPass, VkExtent2D extent);
     void createCommandPool();
-    void createCommandBuffers (vector<VkCommandBuffer>* commandBuffers, u32 size);
+    void createCommandBuffers (ring<VkCommandBuffer>* commandBuffers, u32 size);
     void createSyncObjects();
 
     void createBuffer (VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer* buffer, VkDeviceMemory* bufferMemory);
@@ -377,21 +452,18 @@ public:
     VkCommandBuffer beginSingleTimeCommands();
     void endSingleTimeCommands (VkCommandBuffer commandBuffer);
     void transitionImageLayoutSingletime (Image* image, VkImageLayout newLayout, int mipmaps = 1);
-    void copyImage (VkExtent3D extent, VkCommandBuffer cmdbuf, Image src, Image dst);
-    void copyWholeImage (VkCommandBuffer cmdbuf, Image src, Image dst);
-    void blitWholeImage (VkCommandBuffer cmdbuf, Image src, Image dst, VkFilter filter);
+    void copyImage (VkExtent3D extent, VkCommandBuffer commandBuffer, Image src, Image dst);
+    void copyWholeImage (VkCommandBuffer commandBuffer, Image src, Image dst);
+    void blitWholeImage (VkCommandBuffer commandBuffer, Image src, Image dst, VkFilter filter);
     void processDeletionQueues();
+    void getInstanceLayers();
     void getInstanceExtensions();
 
-    u32 STORAGE_BUFFER_DESCRIPTOR_COUNT = 0;
-    u32 STORAGE_IMAGE_DESCRIPTOR_COUNT = 0;
-    u32 COMBINED_IMAGE_SAMPLER_DESCRIPTOR_COUNT = 0;
-    u32 UNIFORM_BUFFER_DESCRIPTOR_COUNT = 0;
-    u32 INPUT_ATTACHMENT_DESCRIPTOR_COUNT = 0;
-    u32 descriptor_sets_count = 0;
+    
+    DescriptorCounter descriptorCounter;
+    i32 descriptor_sets_count = 0;
     void countDescriptor (const VkDescriptorType type);
-    void createDescriptorSetLayout (vector<VkDescriptorType> descriptorTypes, VkShaderStageFlags baseStages, VkDescriptorSetLayout* layout, VkDescriptorSetLayoutCreateFlags flags = 0);
-    void createDescriptorSetLayout (vector<VkDescriptorType> descriptorTypes, vector<VkShaderStageFlags> stages, VkDescriptorSetLayout* layout, VkDescriptorSetLayoutCreateFlags flags = 0);
+    void createDescriptorSetLayout (vector<ShortDescriptorInfo> shortDescriptorInfos, VkDescriptorSetLayout* layout, VkDescriptorSetLayoutCreateFlags flags = 0);
 
     Window window;
     VkInstance instance;
@@ -411,15 +483,16 @@ public:
 
     VkFormat swapChainImageFormat;
     VkExtent2D swapChainExtent;
-    vector<Image> swapchainImages;
+    ring<Image> swapchainImages;
     u32 imageIndex = 0;
 
-    vector<VkCommandBuffer> graphicsCommandBuffers;
-    vector<VkCommandBuffer> copyCommandBuffers; //runtime copies. Also does first frame resources
+    //this are still managed by user, but are required to exist
+    ring<VkCommandBuffer>* extraCommandBuffers; //runtime copies. Also does first frame resources
+    ring<VkCommandBuffer>*  mainCommandBuffers;
 
-    vector<VkSemaphore> imageAvailableSemaphores;
-    vector<VkSemaphore> renderFinishedSemaphores; //to sync renering with presenting
-    vector<VkFence> frameInFlightFences;
+    ring<VkSemaphore> imageAvailableSemaphores; //to sync presenting with renering  
+    ring<VkSemaphore> renderFinishedSemaphores; //to sync renering with presenting
+    ring<VkFence> frameInFlightFences;
 
     //holds all the cpu-side VkSamplers 
     std::unordered_map<VkSamplerCreateInfo, VkSampler, VkSamplerCreateInfoHash, VkSamplerCreateInfoEqual> samplerMap;
@@ -428,16 +501,16 @@ public:
     vector<BufferDeletion> bufferDeletionQueue; //cpu side buffer abstractions deletion queue. Exists for delayed copies
 
     u32 currentFrame = 0;
-    u32 previousFrame = MAX_FRAMES_IN_FLIGHT - 1;
-    u32 nextFrame = 1;
-
     int iFrame = 0;
+
     VkDebugUtilsMessengerEXT debugMessenger; //just keep it there, who cares about 
-    vector<VkQueryPool> queryPoolTimestamps;
+    ring<VkQueryPool> queryPoolTimestamps;
     int currentTimestamp = 0;
     int timestampCount = 0;
     vector<uint64_t>        timestamps = {};
     vector<double>         ftimestamps = {};
     vector<double> average_ftimestamps = {};
     vector<const char*> timestampNames = {};
+
+    void* pNext; //to allow easy expansion
 };

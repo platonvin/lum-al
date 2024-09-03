@@ -1,12 +1,13 @@
-// *** THIS FILE IS GENERATED - DO NOT EDIT ***
+#pragma once
+//apparently, some ways to install vulkan-sdk for linux do not include this file, so here we are
+
+// *** THIS FILE IS GENERATED - DO NOT EDIT ***            <- i edited it
 // See enum_string_helper_generator.py for modifications
 // Copyright 2023 The Khronos Group Inc.
 // Copyright 2023 Valve Corporation
 // Copyright 2023 LunarG, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
-
-#pragma once
 
 // clang-format off
 
@@ -3478,7 +3479,7 @@ static inline const char* string_VkDriverId(VkDriverId input_value) {
             return "VK_DRIVER_ID_MESA_NVK";
         case VK_DRIVER_ID_IMAGINATION_OPEN_SOURCE_MESA:
             return "VK_DRIVER_ID_IMAGINATION_OPEN_SOURCE_MESA";
-        // makes github workflow crash...
+        // makes github workflow not compile...
         // case VK_DRIVER_ID_MESA_AGXV: 
         //     return "VK_DRIVER_ID_MESA_AGXV";
         // default:

@@ -1,15 +1,15 @@
+#include <numeric>
 #define VMA_IMPLEMENTATION
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
-#include "defines.hpp"
 #include "al.hpp"
+#include "defines/macros.hpp" //after al.hpp
+#include "ringbuffer.hpp"
 
-using std::array;
 using std::vector;
 
 using glm::u8, glm::u16, glm::u16, glm::u32;
 using glm::i8, glm::i16, glm::i32;
 using glm::f32, glm::f64;
-using glm::defaultp;
 using glm::quat;
 using glm::ivec2,glm::ivec3,glm::ivec4;
 using glm::i8vec2,glm::i8vec3,glm::i8vec4;
@@ -19,21 +19,19 @@ using glm::u8vec2,glm::u8vec3,glm::u8vec4;
 using glm::u16vec2,glm::u16vec3,glm::u16vec4;
 using glm::vec,glm::vec2,glm::vec3,glm::vec4;
 using glm::dvec2,glm::dvec3,glm::dvec4;
-using glm::mat, glm::mat2, glm::mat3, glm::mat4;
+using glm::mat2, glm::mat3, glm::mat4;
 using glm::dmat2, glm::dmat3, glm::dmat4;
-using glm::quat_identity;
-using glm::identity;
-using glm::intBitsToFloat, glm::floatBitsToInt, glm::floatBitsToUint;
 
 tuple<int, int> get_block_xy (int N);
 
-vector<char> readFile (const char* filename);
+ring<char> readFile (const char* filename);
 
 void Renderer::init (Settings settings) {
-
     this->settings = settings;
+
     createWindow();
     VK_CHECK (volkInitialize());
+    getInstanceLayers();
     getInstanceExtensions();
     createInstance();
     volkLoadInstance (instance);
@@ -47,9 +45,6 @@ void Renderer::init (Settings settings) {
     createCommandPool();
     createSyncObjects();
 
-    createCommandBuffers (&graphicsCommandBuffers, MAX_FRAMES_IN_FLIGHT);
-    createCommandBuffers ( &copyCommandBuffers, MAX_FRAMES_IN_FLIGHT);
-
     if(settings.profile){
         timestampCount = settings.timestampCount; //TODO dynamic
         timestampNames.resize (timestampCount);
@@ -60,15 +55,16 @@ void Renderer::init (Settings settings) {
             query_pool_info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
             query_pool_info.queryType = VK_QUERY_TYPE_TIMESTAMP;
             query_pool_info.queryCount = timestampCount;
-            queryPoolTimestamps.resize (MAX_FRAMES_IN_FLIGHT);
+            queryPoolTimestamps.allocate (settings.fif);
         for (auto &q : queryPoolTimestamps) {
+            printl(q);
             VK_CHECK (vkCreateQueryPool (device, &query_pool_info, NULL, &q));
         }
     }
 }
 
-void Renderer::deleteImages (vector<Image>* images) {
-    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+void Renderer::deleteImages (ring<Image>* images) {
+    for (int i = 0; i < settings.fif; i++) {
         vkDestroyImageView (device, (*images)[i].view, NULL);
         vmaDestroyImage (VMAllocator, (*images)[i].image, (*images)[i].alloc);
     }
@@ -78,8 +74,8 @@ void Renderer::deleteImages (Image* image) {
     vmaDestroyImage (VMAllocator, (*image).image, (*image).alloc);
 }
 
-void Renderer::deleteBuffers (vector<Buffer>* buffers) {
-    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+void Renderer::deleteBuffers (ring<Buffer>* buffers) {
+    for (int i = 0; i < settings.fif; i++) {
         if((*buffers)[i].is_mapped){
             vmaUnmapMemory (VMAllocator, (*buffers)[i].alloc);
         }
@@ -99,7 +95,7 @@ void Renderer::cleanup() {
     }
 
     vkDestroyDescriptorPool (device, descriptorPool, NULL);
-    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    for (int i = 0; i < settings.fif; i++) {
         vkDestroySemaphore (device, imageAvailableSemaphores[i], NULL);
         vkDestroySemaphore (device, renderFinishedSemaphores[i], NULL);
         vkDestroyFence (device, frameInFlightFences[i], NULL);
@@ -112,7 +108,7 @@ void Renderer::cleanup() {
     }
     vkDestroySwapchainKHR (device, swapchain, NULL);
 
-    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT + 1; i++) {
+    for (int i = 0; i < settings.fif + 1; i++) {
         processDeletionQueues();
     }
     vmaDestroyAllocator (VMAllocator); //do before destroyDevice
@@ -156,8 +152,8 @@ void Renderer::createSwapchain() {
         createInfo.oldSwapchain = VK_NULL_HANDLE;
     VK_CHECK (vkCreateSwapchainKHR (device, &createInfo, NULL, &swapchain));
     vkGetSwapchainImagesKHR (device, swapchain, &imageCount, NULL);
-    swapchainImages.resize (imageCount);
-    vector<VkImage> imgs (imageCount);
+    swapchainImages.allocate (imageCount);
+    ring<VkImage> imgs (imageCount);
     vkGetSwapchainImagesKHR (device, swapchain, &imageCount, imgs.data());
     for (int i = 0; i < imageCount; i++) {
         swapchainImages[i].image = imgs[i];
@@ -183,16 +179,29 @@ void Renderer::createSwapchainImageViews() {
             createInfo.subresourceRange.layerCount = 1;
         swapchainImages[i].aspect = VK_IMAGE_ASPECT_COLOR_BIT;
         swapchainImages[i].format = swapChainImageFormat;
+        swapchainImages[i].extent.width = swapChainExtent.width;
+        swapchainImages[i].extent.height = swapChainExtent.height;
+        swapchainImages[i].extent.depth = 1;
         VK_CHECK (vkCreateImageView (device, &createInfo, NULL, &swapchainImages[i].view));
     }
 }
 
-void Renderer::createFramebuffers (vector<VkFramebuffer>* framebuffers, vector<vector<Image>> imgs4views, VkRenderPass renderPass, u32 Width, u32 Height) {
-    (*framebuffers).resize (imgs4views[0].size());
-    for (u32 i = 0; i < imgs4views[0].size(); i++) {
+void Renderer::createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>> imgs4views, VkRenderPass renderPass, u32 Width, u32 Height) {
+    //we want to iterate over ring, so we need Least Common Multiple of ring's sizes 
+    //for example: 1 depth buffer, 3 swapchain image, 2 taa images result in 6 framebuffers
+    int lcm = 1;
+    for (auto imgs : imgs4views){
+        lcm = std::lcm(imgs.size(), lcm);
+    }
+    printl(lcm)
+    
+    (*framebuffers).allocate (lcm);
+    for (u32 i = 0; i < lcm; i++) {
         vector<VkImageView> attachments = {};
-        for (auto imgForViewVec : imgs4views) {
-            attachments.push_back (imgForViewVec[i].view);
+        for (auto imgs : imgs4views) {
+            printl(imgs.size())
+            int internal_iter = i % imgs.size();
+            attachments.push_back (imgs[internal_iter].view);
         }
         VkFramebufferCreateInfo framebufferInfo = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
             framebufferInfo.renderPass = renderPass;
@@ -204,7 +213,7 @@ void Renderer::createFramebuffers (vector<VkFramebuffer>* framebuffers, vector<v
         VK_CHECK (vkCreateFramebuffer (device, &framebufferInfo, NULL, & (*framebuffers)[i]));
     }
 }
-void Renderer::createFramebuffers (vector<VkFramebuffer>* framebuffers, vector<vector<Image>> imgs4views, VkRenderPass renderPass, VkExtent2D extent) {
+void Renderer::createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>> imgs4views, VkRenderPass renderPass, VkExtent2D extent) {
     createFramebuffers(framebuffers, imgs4views, renderPass, extent.width, extent.height);
 }
 void Renderer::processDeletionQueues() {
@@ -238,28 +247,22 @@ void Renderer::processDeletionQueues() {
 
 
 // #include <glm/gtx/string_cast.hpp>
-void Renderer::start_frame() {
+void Renderer::start_frame(vector<VkCommandBuffer> commandBuffers) {
 println
-    vkWaitForFences (device, 1, &frameInFlightFences[currentFrame], VK_TRUE, UINT32_MAX);
+    vkWaitForFences (device, 1, &frameInFlightFences.current(), VK_TRUE, UINT32_MAX);
 println
-    vkResetFences (device, 1, &frameInFlightFences[currentFrame]);
-println
-    vkResetCommandBuffer (graphicsCommandBuffers[currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
-println
-    vkResetCommandBuffer (copyCommandBuffers[currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
+    vkResetFences (device, 1, &frameInFlightFences.current());
 
-println
     VkCommandBufferBeginInfo beginInfo = {};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags = 0;
         beginInfo.pInheritanceInfo = NULL;
-println
-    VK_CHECK (vkBeginCommandBuffer (graphicsCommandBuffers[currentFrame], &beginInfo));
-    VK_CHECK (vkBeginCommandBuffer (copyCommandBuffers[currentFrame], &beginInfo));
-println
+    for (auto cb : commandBuffers){
+        vkResetCommandBuffer(cb, 0);
+        vkBeginCommandBuffer(cb, &beginInfo);
+    }
 
-    VkCommandBuffer& commandBuffer = graphicsCommandBuffers[currentFrame];
-    VkResult result = vkAcquireNextImageKHR (device, swapchain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+    VkResult result = vkAcquireNextImageKHR (device, swapchain, UINT64_MAX, imageAvailableSemaphores.current(), VK_NULL_HANDLE, &imageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         // recreate_SwapchainDependent();
         resized = true;
@@ -269,48 +272,33 @@ println
         exit (result);
     }
 
+println
     if(settings.profile){
-        vkCmdResetQueryPool (commandBuffer, queryPoolTimestamps[currentFrame], 0, timestampCount);
+println
+        // assert(mainCommandBuffers->current());
+// println
+        // assert(queryPoolTimestamps.current());
+    printl(queryPoolTimestamps.size());
+    printl(queryPoolTimestamps.current());
+        vkCmdResetQueryPool ((*mainCommandBuffers).current(), queryPoolTimestamps.current(), 0, timestampCount);
         currentTimestamp = 0;
     }
+println
 }
 
 void Renderer::present() {
-    VK_CHECK (vkEndCommandBuffer (graphicsCommandBuffers[currentFrame]));
-    VK_CHECK (vkEndCommandBuffer (copyCommandBuffers[currentFrame]));
-    vector<VkSemaphore> signalSemaphores = {renderFinishedSemaphores};
-    vector<VkSemaphore> waitSemaphores = {imageAvailableSemaphores[currentFrame]};
-    VkPipelineStageFlags waitStages[] = {
-        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-    };
-    vector<VkCommandBuffer> commandBuffers = {
-        copyCommandBuffers[currentFrame],
-        graphicsCommandBuffers[currentFrame]
-    };
-    VkSubmitInfo 
-        submitInfo = {};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.waitSemaphoreCount = waitSemaphores.size();
-        submitInfo.pWaitSemaphores = waitSemaphores.data();
-        submitInfo.pWaitDstStageMask = waitStages;
-        submitInfo.commandBufferCount = commandBuffers.size();
-        submitInfo.pCommandBuffers = commandBuffers.data();
-        submitInfo.signalSemaphoreCount = signalSemaphores.size();
-        submitInfo.pSignalSemaphores = signalSemaphores.data();
+    vector<VkSemaphore> waitSemaphores = {renderFinishedSemaphores.current()};
+    
     VkSwapchainKHR swapchains[] = {swapchain};
     VkPresentInfoKHR 
         presentInfo = {};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-        presentInfo.waitSemaphoreCount = signalSemaphores.size();
-        presentInfo.pWaitSemaphores = signalSemaphores.data();
+        presentInfo.waitSemaphoreCount = waitSemaphores.size();
+        presentInfo.pWaitSemaphores = waitSemaphores.data();
         presentInfo.swapchainCount = 1;
         presentInfo.pSwapchains = swapchains;
         presentInfo.pImageIndices = &imageIndex;
         presentInfo.pResults = NULL;
-    VK_CHECK (vkQueueSubmit (graphicsQueue, 1, &submitInfo, frameInFlightFences[currentFrame]));
     VkResult result = vkQueuePresentKHR (presentQueue, &presentInfo);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || resized) {
         resized = false;
@@ -322,38 +310,74 @@ void Renderer::present() {
     }
 }
 
-void Renderer::end_frame() {
-    if (iFrame != 0) {
-        if(settings.profile){
-            vkGetQueryPoolResults (
-                device,
-                queryPoolTimestamps[previousFrame],
-                0,
-                currentTimestamp,
-                currentTimestamp* sizeof (uint64_t),
-                timestamps.data(),
-                sizeof (uint64_t),
-                VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
-        }
+void Renderer::end_frame(vector<VkCommandBuffer> commandBuffers) {
+    for(auto cb : commandBuffers){
+        vkEndCommandBuffer(cb);
     }
-    double timestampPeriod = physicalDeviceProperties.limits.timestampPeriod;
-    for (int i = 0; i < timestampCount; i++) {
-        ftimestamps[i] = double (timestamps[i]) * timestampPeriod / 1000000.0;
-    }
-    //just for less fluctuation
-    if (iFrame > 5) {
+    
+    vector<VkSemaphore> signalSemaphores = {renderFinishedSemaphores.current()};
+    vector<VkSemaphore> waitSemaphores = {imageAvailableSemaphores.current()};
+    VkPipelineStageFlags waitStages[] = {
+        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+    };
+
+    VkSubmitInfo 
+        submitInfo = {};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.waitSemaphoreCount = waitSemaphores.size();
+        submitInfo.pWaitSemaphores = waitSemaphores.data();
+        submitInfo.pWaitDstStageMask = waitStages;
+        submitInfo.commandBufferCount = commandBuffers.size();
+        submitInfo.pCommandBuffers = commandBuffers.data();
+        submitInfo.signalSemaphoreCount = signalSemaphores.size();
+        submitInfo.pSignalSemaphores = signalSemaphores.data();
+    VK_CHECK (vkQueueSubmit (graphicsQueue, 1, &submitInfo, frameInFlightFences.current()));
+
+    present();
+
+    if(settings.profile){
+        if (iFrame != 0) {
+                vkGetQueryPoolResults (
+                    device,
+                    //this has to wait for cmdbuff to finish executing on gpu, so to keep concurrency we use previous frame measurement. For 1 FIF its still current one
+                    queryPoolTimestamps.previous(), 
+                    0,
+                    currentTimestamp,
+                    currentTimestamp* sizeof (uint64_t),
+                    timestamps.data(),
+                    sizeof (uint64_t),
+                    VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+            }
+        double timestampPeriod = physicalDeviceProperties.limits.timestampPeriod;
         for (int i = 0; i < timestampCount; i++) {
-            average_ftimestamps[i] = glm::mix (average_ftimestamps[i], ftimestamps[i], 0.1);
+            ftimestamps[i] = double (timestamps[i]) * timestampPeriod / 1000000.0;
         }
-    } else {
-        for (int i = 0; i < timestampCount; i++) {
-            average_ftimestamps[i] = ftimestamps[i];
+        //for less fluctuation
+        if (iFrame > 5) {
+            for (int i = 0; i < timestampCount; i++) {
+                average_ftimestamps[i] = glm::mix (average_ftimestamps[i], ftimestamps[i], 0.1);
+            }
+        } else {
+            for (int i = 0; i < timestampCount; i++) {
+                average_ftimestamps[i] = ftimestamps[i];
+            }
         }
     }
-    previousFrame = currentFrame;
-    currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
-    nextFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+    currentFrame = (currentFrame + 1) % settings.fif;
     iFrame++;
+    
+println
+    imageAvailableSemaphores.move(); //to sync presenting with renering  
+println
+    renderFinishedSemaphores.move(); //to sync renering with presenting
+println
+    frameInFlightFences.move();
+println
+    if(settings.profile){
+        queryPoolTimestamps.move();
+    }
+println
+
     processDeletionQueues();
 }
 
@@ -713,19 +737,41 @@ void Renderer::cmdSetViewport(VkCommandBuffer commandBuffer, VkExtent2D extent){
     cmdSetViewport(commandBuffer, extent.width, extent.height);
 }
 
+void Renderer::cmdDraw(VkCommandBuffer commandBuffer, u32 vertexCount, u32 instanceCount, u32 firstVertex, u32 firstInstance){
+    vkCmdDraw(commandBuffer, vertexCount, instanceCount, firstVertex, firstInstance);
+}
+
+void Renderer::cmdBeginRenderPass(VkCommandBuffer commandBuffer, RenderPass* rpass){
+    VkRenderPassBeginInfo 
+        renderPassInfo = {};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassInfo.renderPass = rpass->rpass;
+        renderPassInfo.framebuffer = rpass->framebuffers.current();
+        renderPassInfo.renderArea.offset = {0, 0};
+        renderPassInfo.renderArea.extent = rpass->extent;
+        renderPassInfo.clearValueCount = rpass->clear_colors.size();
+        renderPassInfo.pClearValues = rpass->clear_colors.data();
+    vkCmdBeginRenderPass (commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    cmdSetViewport(commandBuffer, rpass->extent);
+}
+void Renderer::cmdEndRenderPass(VkCommandBuffer commandBuffer, RenderPass* rpass){
+    vkCmdEndRenderPass (commandBuffer);
+    rpass->framebuffers.move();
+}
+
 void Renderer::cmdBindPipe(VkCommandBuffer commandBuffer, RasterPipe pipe){
 println
-    PLACE_TIMESTAMP();
+    PLACE_TIMESTAMP(commandBuffer);
 println
     vkCmdBindPipeline (commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.line);
 println
-    vkCmdBindDescriptorSets (commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.lineLayout, 0, 1, &pipe.sets[currentFrame], 0, 0);
+    vkCmdBindDescriptorSets (commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.lineLayout, 0, 1, &pipe.sets.current(), 0, 0);
 println
 }
 void Renderer::cmdBindPipe(VkCommandBuffer commandBuffer, ComputePipe pipe){
-    PLACE_TIMESTAMP();
+    PLACE_TIMESTAMP(commandBuffer);
     vkCmdBindPipeline (commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.line);
-    vkCmdBindDescriptorSets (commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.lineLayout, 0, 1, &pipe.sets[currentFrame], 0, 0);
+    vkCmdBindDescriptorSets (commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.lineLayout, 0, 1, &pipe.sets.current(), 0, 0);
 }
 
 void Renderer::transitionImageLayoutSingletime (Image* image, VkImageLayout newLayout, int mipmaps) {

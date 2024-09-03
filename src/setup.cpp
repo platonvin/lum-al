@@ -1,5 +1,5 @@
 #include "al.hpp"
-#include "defines.hpp"
+#include "defines/macros.hpp"
 #include <cstring>
 #include <map>
 #include <set>
@@ -9,7 +9,6 @@
 using glm::u8, glm::u16, glm::u16, glm::u32;
 using glm::i8, glm::i16, glm::i32;
 using glm::f32, glm::f64;
-using glm::defaultp;
 using glm::quat;
 using glm::ivec2,glm::ivec3,glm::ivec4;
 using glm::i8vec2,glm::i8vec3,glm::i8vec4;
@@ -17,23 +16,16 @@ using glm::i16vec2,glm::i16vec3,glm::i16vec4;
 using glm::uvec2,glm::uvec3,glm::uvec4;
 using glm::u8vec2,glm::u8vec3,glm::u8vec4;
 using glm::u16vec2,glm::u16vec3,glm::u16vec4;
-using glm::vec,glm::vec2,glm::vec3,glm::vec4;
+using glm::vec2,glm::vec3,glm::vec4;
 using glm::dvec2,glm::dvec3,glm::dvec4;
-using glm::mat, glm::mat2, glm::mat3, glm::mat4;
+using glm::mat2, glm::mat3, glm::mat4;
 using glm::dmat2, glm::dmat3, glm::dmat4;
 
 //they are global because its easier lol
-const vector<const char*> instanceLayers = {
-#ifndef VKNDEBUG
-    "VK_LAYER_KHRONOS_validation",
-    "VK_LAYER_LUNARG_monitor",
-#endif
+vector<const char*> instanceLayers = {
 };
 /*const*/vector<const char*> instanceExtensions = {
     VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
-#ifndef VKNDEBUG
-    VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-#endif
 
     VK_KHR_SURFACE_EXTENSION_NAME,
     // "VK_KHR_win32_surface",
@@ -59,8 +51,8 @@ void Renderer::createCommandPool() {
     VK_CHECK (vkCreateCommandPool (device, &poolInfo, NULL, &commandPool));
 }
 
-void Renderer::createCommandBuffers (vector<VkCommandBuffer>* commandBuffers, u32 size) {
-    (*commandBuffers).resize (size);
+void Renderer::createCommandBuffers (ring<VkCommandBuffer>* commandBuffers, u32 size) {
+    (*commandBuffers).allocate (size);
     VkCommandBufferAllocateInfo 
         allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -71,9 +63,9 @@ void Renderer::createCommandBuffers (vector<VkCommandBuffer>* commandBuffers, u3
 }
 
 void Renderer::createSyncObjects() {
-    imageAvailableSemaphores.resize (MAX_FRAMES_IN_FLIGHT);
-    renderFinishedSemaphores.resize (MAX_FRAMES_IN_FLIGHT);
-    frameInFlightFences.resize (MAX_FRAMES_IN_FLIGHT);
+    imageAvailableSemaphores.allocate (settings.fif);
+    renderFinishedSemaphores.allocate (settings.fif);
+    frameInFlightFences.allocate (settings.fif);
     VkSemaphoreCreateInfo 
         semaphoreInfo = {};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -81,7 +73,7 @@ void Renderer::createSyncObjects() {
         fenceInfo{};
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    for (i32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    for (i32 i = 0; i < settings.fif; i++) {
         VK_CHECK (vkCreateSemaphore (device, &semaphoreInfo, NULL, &imageAvailableSemaphores[i]));
         VK_CHECK (vkCreateSemaphore (device, &semaphoreInfo, NULL, &renderFinishedSemaphores[i]));
         VK_CHECK (vkCreateFence (device, &fenceInfo, NULL, &frameInFlightFences[i]));
@@ -134,14 +126,14 @@ VkAttachmentStoreOp Renderer::getOpStore(LoadStoreOp op){
           crash(wrong load op);
     }
 }
-void Renderer::createRenderPass(vector<AttachmentDescription> attachments, vector<SubpassAttachments> sas, VkRenderPass* rpass){
+void Renderer::createRenderPass(vector<AttachmentDescription> attachments, vector<SubpassAttachments> sas, RenderPass* rpass){
     vector<VkAttachmentDescription> adescs(attachments.size());
     vector<VkAttachmentReference  > arefs(attachments.size());
     std::map<void*, u32> img2ref = {};
 
     for(int i=0; i<attachments.size(); i++){
-        adescs[i].format = attachments[i].image->format;
-        cout << string_VkFormat(attachments[i].image->format) << "\n";
+        adescs[i].format = attachments[i].images[0].format;
+        cout << string_VkFormat(attachments[i].images[0].format) << "\n";
         adescs[i].samples = VK_SAMPLE_COUNT_1_BIT;
         adescs[i].loadOp  = getOpLoad (attachments[i].load);
         adescs[i].storeOp = getOpStore(attachments[i].store);
@@ -152,21 +144,21 @@ void Renderer::createRenderPass(vector<AttachmentDescription> attachments, vecto
         } else adescs[i].initialLayout = VK_IMAGE_LAYOUT_GENERAL;
         adescs[i].finalLayout = attachments[i].finalLayout;
         arefs[i] = {u32(i), VK_IMAGE_LAYOUT_GENERAL};
-        img2ref[attachments[i].image] = i;
+        img2ref[attachments[i].images.data()] = i;
     }
 
     vector<VkSubpassDescription > subpasses(sas.size());
     vector<SubpassAttachmentRefs> sas_refs(sas.size());
 
     for(int i=0; i<sas.size(); i++){
-        if(sas[i].a_depth != NULL){
-            sas_refs[i].a_depth = arefs[img2ref[sas[i].a_depth]];
+        if(!sas[i].a_depth.empty()){
+            sas_refs[i].a_depth = arefs[img2ref[sas[i].a_depth.data()]];
         }
         for(auto color: sas[i].a_color){
-            sas_refs[i].a_color.push_back(arefs[img2ref[color]]);
+            sas_refs[i].a_color.push_back(arefs[img2ref[color.data()]]);
         }
         for(auto input: sas[i].a_input){
-            sas_refs[i].a_input.push_back(arefs[img2ref[input]]);
+            sas_refs[i].a_input.push_back(arefs[img2ref[input.data()]]);
         }
     }
 
@@ -177,7 +169,7 @@ void Renderer::createRenderPass(vector<AttachmentDescription> attachments, vecto
         subpasses[i].pColorAttachments = sas_refs[i].a_color.data();
         subpasses[i].inputAttachmentCount = sas_refs[i].a_input.size();
         subpasses[i].pInputAttachments = sas_refs[i].a_input.data();
-        subpasses[i].pDepthStencilAttachment = (sas[i].a_depth == NULL)? NULL : &sas_refs[i].a_depth;
+        subpasses[i].pDepthStencilAttachment = (sas[i].a_depth.empty())? NULL : &sas_refs[i].a_depth;
     }
 
     for(int i=0; i<sas.size(); i++){
@@ -218,13 +210,22 @@ void Renderer::createRenderPass(vector<AttachmentDescription> attachments, vecto
         createInfo.pSubpasses = subpasses.data();
         createInfo.dependencyCount = dependencies.size();
         createInfo.pDependencies = dependencies.data();
-    VK_CHECK (vkCreateRenderPass (device, &createInfo, NULL, rpass));
+    VK_CHECK (vkCreateRenderPass (device, &createInfo, NULL, &rpass->rpass));
     
     for(int i=0; i<sas.size(); i++){
         for(auto pipe: sas[i].pipes){
-            pipe->renderPass = *rpass;
+            pipe->renderPass = rpass->rpass;
         }
     }
+
+    vector<ring<Image>> fb_images = {};
+    for (auto att : attachments){
+        fb_images.push_back(att.images);
+    }
+    rpass->extent = {attachments[0].images[0].extent.width, attachments[0].images[0].extent.height};
+    printl(attachments[0].images[0].extent.width)
+    printl(attachments[0].images[0].extent.height)
+    createFramebuffers(&rpass->framebuffers, fb_images, rpass->rpass, rpass->extent);
 } 
 
 void Renderer::destroyRasterPipeline (RasterPipe* pipe) {
@@ -685,8 +686,11 @@ VkSurfaceFormatKHR Renderer::chooseSwapSurfaceFormat (vector<VkSurfaceFormatKHR>
         if (format.format == VK_FORMAT_B8G8R8A8_UNORM && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
             return format;
         }
+        if (format.format == VK_FORMAT_R8G8B8A8_UNORM && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+            return format;
+        }
     }
-    cout << KYEL "Where is your RAYTRACED_IMAGE_FORMAT VK_COLOR_SPACE_SRGB_NONLINEAR_KHR?\n" KEND;
+    cout << KYEL "Swapchain format not chosen\n" KEND;
     return availableFormats[0];
 }
 
@@ -695,17 +699,13 @@ VkPresentModeKHR Renderer::chooseSwapPresentMode (vector<VkPresentModeKHR> avail
         if (
             ((mode == VK_PRESENT_MODE_FIFO_KHR) && settings.vsync) ||
             ((mode == VK_PRESENT_MODE_MAILBOX_KHR) && !settings.vsync)
-        ) {
-            return mode;
-        }
-    }
-    for (auto mode : availablePresentModes) {
+        ) {return mode;}
+        
         if (
             ((mode == VK_PRESENT_MODE_IMMEDIATE_KHR) && !settings.vsync)
-        ) {
-            return mode;
-        }
+        ) {return mode;}
     }
+
     return VK_PRESENT_MODE_FIFO_KHR;
 }
 
@@ -793,6 +793,22 @@ void Renderer::setupDebugMessenger() {
 }
 #endif
 
+void Renderer::getInstanceLayers() {
+    uint32_t layerCount;
+    vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+    vector<VkLayerProperties> availableLayers(layerCount);
+    vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+
+    if(settings.debug){
+        instanceLayers.push_back("VK_LAYER_KHRONOS_validation");
+    }
+    //just convenience
+    for(auto layer : availableLayers){
+        if(strcmp(layer.layerName, "VK_LAYER_LUNARG_monitor") == 0){
+            instanceLayers.push_back("VK_LAYER_LUNARG_monitor");
+        }
+    }
+}
 void Renderer::getInstanceExtensions() {
     u32 glfwExtCount = 0;
     const char** glfwExtensions = glfwGetRequiredInstanceExtensions (&glfwExtCount);
@@ -816,6 +832,10 @@ void Renderer::getInstanceExtensions() {
             cout << KRED << ext << " not supported\n" << KEND;
             exit (1);
         }
+    }
+
+    if(settings.debug){
+        instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 }
 
@@ -856,7 +876,7 @@ void Renderer::createInstance() {
         app_info.apiVersion = VK_API_VERSION_1_3;
     vector<VkValidationFeatureEnableEXT> enabledFeatures = {
         // VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
-        // VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
+        VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
     };
     VkValidationFeaturesEXT 
         features = {};
@@ -864,9 +884,9 @@ void Renderer::createInstance() {
         features.enabledValidationFeatureCount = enabledFeatures.size();
         features.pEnabledValidationFeatures = enabledFeatures.data();
     VkInstanceCreateInfo createInfo = {};
-#ifndef VKNDEBUG
-        createInfo.pNext = &features; // according to spec
-#endif
+        if(settings.debug){
+            createInfo.pNext = &features; // according to spec
+        }
         createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         createInfo.pApplicationInfo = &app_info;
         createInfo.enabledExtensionCount = instanceExtensions.size();
@@ -876,21 +896,22 @@ void Renderer::createInstance() {
     VK_CHECK (vkCreateInstance (&createInfo, NULL, &instance));
 }
 
-void Renderer::createImageStorages (vector<Image>* images,
+void Renderer::createImageStorages (ring<Image>* images,
                                       VkImageType type, VkFormat format, VkImageUsageFlags usage, VmaMemoryUsage vma_usage, VmaAllocationCreateFlags vma_flags, VkImageAspectFlags aspect,
-                                      uvec3 size, int mipmaps, VkSampleCountFlagBits sample_count) {
-    (*images).resize (MAX_FRAMES_IN_FLIGHT);
-    for (i32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        createImageStorages(&(*images)[i], type, format, usage, vma_usage, vma_flags, aspect, size, mipmaps, sample_count);
+                                      VkExtent3D extent, int mipmaps, VkSampleCountFlagBits sample_count) {
+    (*images).allocate (settings.fif);
+    for (i32 i = 0; i < settings.fif; i++) {
+        createImageStorages(&(*images)[i], type, format, usage, vma_usage, vma_flags, aspect, extent, mipmaps, sample_count);
     }
 }
 
 void Renderer::createImageStorages (Image* image,
                                       VkImageType type, VkFormat format, VkImageUsageFlags usage, VmaMemoryUsage vma_usage, VmaAllocationCreateFlags vma_flags, VkImageAspectFlags aspect,
-                                      uvec3 size, int mipmaps, VkSampleCountFlagBits sample_count) {
+                                      VkExtent3D extent, int mipmaps, VkSampleCountFlagBits sample_count) {
     // VkFormat chosen_format = findSupportedFormat(format, type, VK_IMAGE_TILING_OPTIMAL, usage);
     image->aspect = aspect;
     image->format = format;
+    image->extent = extent;
     VkImageCreateInfo 
         imageInfo = {};
         imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -901,9 +922,7 @@ void Renderer::createImageStorages (Image* image,
         imageInfo.samples = sample_count;
         imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
         imageInfo.usage = usage;
-        imageInfo.extent.width = size.x;
-        imageInfo.extent.height = size.y;
-        imageInfo.extent.depth = size.z;
+        imageInfo.extent = extent;
         imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     VmaAllocationCreateInfo 
         allocInfo = {};
@@ -934,10 +953,10 @@ void Renderer::createImageStorages (Image* image,
 }
 
 //fill manually with cmd or copy
-void Renderer::createBufferStorages (vector<Buffer>* buffers, VkBufferUsageFlags usage, u32 size, bool host) {
-    (*buffers).resize (MAX_FRAMES_IN_FLIGHT);
+void Renderer::createBufferStorages (ring<Buffer>* buffers, VkBufferUsageFlags usage, u32 size, bool host) {
+    (*buffers).allocate (settings.fif);
     // allocs.resize(MAX_FRAMES_IN_FLIGHT);
-    for (i32 i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    for (i32 i = 0; i < settings.fif; i++) {
         VkBufferCreateInfo 
             bufferInfo = {};
             bufferInfo.size = size;
@@ -968,34 +987,30 @@ void Renderer::createBufferStorages (Buffer* buffer, VkBufferUsageFlags usage, u
     VK_CHECK (vmaCreateBuffer (VMAllocator, &bufferInfo, &allocInfo, & (*buffer).buffer, & (*buffer).alloc, NULL));
 }
 
+#define MAKE_DESCRIPTOR_TYPE(name)\
+    case name:\
+        descriptorCounter.name##_COUNTER ++;\
+        break;
 void Renderer::countDescriptor (const VkDescriptorType type) {
-    if (type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER) {
-        STORAGE_BUFFER_DESCRIPTOR_COUNT++;
-    } else if (type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) {
-        COMBINED_IMAGE_SAMPLER_DESCRIPTOR_COUNT++;
-    } else if (type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE) {
-        STORAGE_IMAGE_DESCRIPTOR_COUNT++;
-    } else if (type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
-        UNIFORM_BUFFER_DESCRIPTOR_COUNT++;
-    } else if (type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT) {
-        INPUT_ATTACHMENT_DESCRIPTOR_COUNT++;
-    } else {
-        cout << KRED "ADD DESCRIPTOR TO COUNTER\n" KEND;
-        abort();
+    switch (type) {
+        #include "defines/descriptor_types.hpp"
+        default:
+            cout << KRED "WRONG DESCRIPTOR TYPE\n" KEND;
+            abort();
     }
 }
+#undef MAKE_DESCRIPTOR_TYPE
 
-//in order
-void Renderer::createDescriptorSetLayout (vector<VkDescriptorType> descriptorTypes, VkShaderStageFlags baseStages, VkDescriptorSetLayout* layout, VkDescriptorSetLayoutCreateFlags flags) {
+void Renderer::createDescriptorSetLayout (vector<ShortDescriptorInfo> descriptorInfos, VkDescriptorSetLayout* layout, VkDescriptorSetLayoutCreateFlags flags) {
     vector<VkDescriptorSetLayoutBinding> bindings = {};
-    for (i32 i = 0; i < descriptorTypes.size(); i++) {
-        countDescriptor (descriptorTypes[i]);
+    for (i32 i = 0; i < descriptorInfos.size(); i++) {
+        countDescriptor (descriptorInfos[i].type);
         VkDescriptorSetLayoutBinding
         bind = {};
         bind.binding = i;
-        bind.descriptorType = descriptorTypes[i];
+        bind.descriptorType = descriptorInfos[i].type;
         bind.descriptorCount = 1;
-        bind.stageFlags = baseStages;
+        bind.stageFlags = descriptorInfos[i].stages;
         bindings.push_back (bind);
     }
     VkDescriptorSetLayoutCreateInfo
@@ -1007,71 +1022,29 @@ void Renderer::createDescriptorSetLayout (vector<VkDescriptorType> descriptorTyp
     VK_CHECK (vkCreateDescriptorSetLayout (device, &layoutInfo, NULL, layout));
 }
 
-void Renderer::createDescriptorSetLayout (vector<VkDescriptorType> descriptorTypes, vector<VkShaderStageFlags> stages, VkDescriptorSetLayout* layout, VkDescriptorSetLayoutCreateFlags flags) {
-    vector<VkDescriptorSetLayoutBinding> bindings = {};
-    for (i32 i = 0; i < descriptorTypes.size(); i++) {
-        countDescriptor (descriptorTypes[i]);
-        VkDescriptorSetLayoutBinding
-        bind = {};
-        bind.binding = i;
-        bind.descriptorType = descriptorTypes[i];
-        bind.descriptorCount = 1;
-        bind.stageFlags = stages[i];
-        bindings.push_back (bind);
+#define MAKE_DESCRIPTOR_TYPE(name)\
+    if(descriptorCounter.name##_COUNTER != 0){\
+        VkDescriptorPoolSize\
+            PoolSize = {};\
+            PoolSize.type = name;\
+            PoolSize.descriptorCount = descriptorCounter.name##_COUNTER;\
+        pull_sizes.push_back(PoolSize);\
     }
-    VkDescriptorSetLayoutCreateInfo
-        layoutInfo = {};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.flags = flags;
-        layoutInfo.bindingCount = bindings.size();
-        layoutInfo.pBindings = bindings.data();
-    VK_CHECK (vkCreateDescriptorSetLayout (device, &layoutInfo, NULL, layout));
-}
-
 void Renderer::createDescriptorPool() {
-    printl (STORAGE_IMAGE_DESCRIPTOR_COUNT);
-    printl (COMBINED_IMAGE_SAMPLER_DESCRIPTOR_COUNT);
-    printl (STORAGE_BUFFER_DESCRIPTOR_COUNT);
-    printl (UNIFORM_BUFFER_DESCRIPTOR_COUNT);
-    VkDescriptorPoolSize 
-        STORAGE_IMAGE_PoolSize = {};
-        STORAGE_IMAGE_PoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-        STORAGE_IMAGE_PoolSize.descriptorCount = STORAGE_IMAGE_DESCRIPTOR_COUNT * 8 + 1;
-    VkDescriptorPoolSize 
-        COMBINED_IMAGE_SAMPLER_PoolSize = {};
-        COMBINED_IMAGE_SAMPLER_PoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        COMBINED_IMAGE_SAMPLER_PoolSize.descriptorCount = COMBINED_IMAGE_SAMPLER_DESCRIPTOR_COUNT * 8 + 1;
-    VkDescriptorPoolSize 
-        STORAGE_BUFFER_PoolSize = {};
-        STORAGE_BUFFER_PoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        STORAGE_BUFFER_PoolSize.descriptorCount = STORAGE_BUFFER_DESCRIPTOR_COUNT * 8 + 1;
-    VkDescriptorPoolSize 
-        UNIFORM_BUFFER_PoolSize = {};
-        UNIFORM_BUFFER_PoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        UNIFORM_BUFFER_PoolSize.descriptorCount = UNIFORM_BUFFER_DESCRIPTOR_COUNT * 8 + 1;
-    VkDescriptorPoolSize 
-        INPUT_ATTACHMENT_PoolSize = {};
-        INPUT_ATTACHMENT_PoolSize.type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-        INPUT_ATTACHMENT_PoolSize.descriptorCount = INPUT_ATTACHMENT_DESCRIPTOR_COUNT * 8 + 1;
-    vector<VkDescriptorPoolSize> poolSizes = {
-        STORAGE_IMAGE_PoolSize,
-        COMBINED_IMAGE_SAMPLER_PoolSize,
-        // STORAGE_BUFFER_PoolSize,
-        UNIFORM_BUFFER_PoolSize,
-        INPUT_ATTACHMENT_PoolSize
-    };
+    vector<VkDescriptorPoolSize> pull_sizes = {};
+    #include "defines/descriptor_types.hpp"
     VkDescriptorPoolCreateInfo 
         poolInfo = {};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.poolSizeCount = poolSizes.size();
-        poolInfo.pPoolSizes = poolSizes.data();
-        poolInfo.maxSets = descriptor_sets_count; //becuase frames_in_flight multiply of 5 differents sets, each for shader
+        poolInfo.poolSizeCount = pull_sizes.size();
+        poolInfo.pPoolSizes = pull_sizes.data();
+        poolInfo.maxSets = descriptor_sets_count;
     VK_CHECK (vkCreateDescriptorPool (device, &poolInfo, NULL, &descriptorPool));
 }
 
-static void allocate_Descriptor (vector<VkDescriptorSet>& sets, VkDescriptorSetLayout layout, VkDescriptorPool pool, VkDevice device) {
-    sets.resize (MAX_FRAMES_IN_FLIGHT);
-    vector<VkDescriptorSetLayout> layouts (MAX_FRAMES_IN_FLIGHT, layout);
+static void allocate_Descriptor (ring<VkDescriptorSet>& sets, VkDescriptorSetLayout layout, VkDescriptorPool pool, VkDevice device, int count) {
+    sets.allocate (count);
+    vector<VkDescriptorSetLayout> layouts (count, layout);
     VkDescriptorSetAllocateInfo 
         allocInfo = {};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -1081,25 +1054,24 @@ static void allocate_Descriptor (vector<VkDescriptorSet>& sets, VkDescriptorSetL
     VK_CHECK (vkAllocateDescriptorSets (device, &allocInfo, sets.data()));
 }
 
-void Renderer::deferDescriptorSetup (VkDescriptorSetLayout* dsetLayout, vector<VkDescriptorSet>* descriptorSets, vector<DescriptorInfo> descriptions, VkShaderStageFlags baseStages, VkDescriptorSetLayoutCreateFlags createFlags) {
+void Renderer::deferDescriptorSetup (VkDescriptorSetLayout* dsetLayout, ring<VkDescriptorSet>* descriptorSets, vector<DescriptorInfo> descriptions, VkShaderStageFlags baseStages, VkDescriptorSetLayoutCreateFlags createFlags) {
     if (*dsetLayout == VK_NULL_HANDLE) {
-        vector<VkDescriptorType> descriptorTypes (descriptions.size());
-        vector<VkShaderStageFlags> descriptorStages (descriptions.size());
+        vector<ShortDescriptorInfo> descriptorInfos (descriptions.size());
         for (int i = 0; i < descriptions.size(); i++) {
-            descriptorTypes[i] = descriptions[i].type;
-            descriptorStages[i] = (descriptions[i].stages == 0) ? baseStages : descriptions[i].stages;
+            descriptorInfos[i].type = descriptions[i].type;
+            descriptorInfos[i].stages = (descriptions[i].stages == 0) ? baseStages : descriptions[i].stages;
         }
-        createDescriptorSetLayout (descriptorTypes, descriptorStages, dsetLayout, createFlags);
+        createDescriptorSetLayout (descriptorInfos, dsetLayout, createFlags);
     }
-    descriptor_sets_count += MAX_FRAMES_IN_FLIGHT;
+    descriptor_sets_count += settings.fif;
     DelayedDescriptorSetup delayed_setup = {dsetLayout, descriptorSets, descriptions, baseStages, createFlags};
     delayed_descriptor_setups.push_back (delayed_setup);
 }
 
-void Renderer::setupDescriptor (VkDescriptorSetLayout* dsetLayout, vector<VkDescriptorSet>* descriptorSets, vector<DescriptorInfo> descriptions, VkShaderStageFlags stages) {
+void Renderer::setupDescriptor (VkDescriptorSetLayout* dsetLayout, ring<VkDescriptorSet>* descriptorSets, vector<DescriptorInfo> descriptions, VkShaderStageFlags stages) {
     for (int frame_i = 0; frame_i < (*descriptorSets).size(); frame_i++) {
         int previous_frame_i = frame_i - 1;
-        if (previous_frame_i < 0) { previous_frame_i = MAX_FRAMES_IN_FLIGHT - 1; } // so frames do not intersect
+        if (previous_frame_i < 0) { previous_frame_i = settings.fif - 1; } // so frames do not intersect
         vector<VkDescriptorImageInfo > image_infos (descriptions.size());
         vector<VkDescriptorBufferInfo> buffer_infos (descriptions.size());
         vector<VkWriteDescriptorSet> writes (descriptions.size());
@@ -1156,8 +1128,12 @@ void Renderer::flushDescriptorSetup() {
     // for(int i=0; i<delayed_descriptor_setups.size(); i++) {
     for (auto setup : delayed_descriptor_setups) {
         if ((setup.sets->empty())) {
-            allocate_Descriptor (*setup.sets, *setup.setLayout, descriptorPool, device);
+            allocate_Descriptor (*setup.sets, *setup.setLayout, descriptorPool, device, settings.fif);
         }
         setupDescriptor (setup.setLayout, setup.sets, setup.descriptions, setup.stages);
     }
+}
+
+void Renderer::debugValidate(){
+    // assert()
 }
