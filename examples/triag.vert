@@ -1,10 +1,14 @@
 #version 450
 
-void main(){
-	vec3 positions[3] = vec3[3](
-		vec3(1.f,1.f, 0.0f),
-		vec3(-1.f,1.f, 0.0f),
-		vec3(0.f,-1.f, 0.0f)
+layout (location = 0) out vec2 outUV;
+
+void main() {
+	vec2 positions[3] = vec2[3](
+		vec2(+1,+1),
+		vec2(-1,+1),
+		vec2(+0,-1)
 	);
-	gl_Position = vec4(positions[gl_VertexIndex], 1.0f);
+	vec2 clip_pos = vec2(positions[gl_VertexIndex]);
+	outUV = clip_pos / 2.0 + 0.5;
+    gl_Position = vec4(clip_pos, 0.0f, 1.0f);
 }

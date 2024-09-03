@@ -186,24 +186,27 @@ void Renderer::createSwapchainImageViews() {
     }
 }
 
-void Renderer::createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>> imgs4views, VkRenderPass renderPass, u32 Width, u32 Height) {
+void Renderer::createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>*> imgs4views, VkRenderPass renderPass, u32 Width, u32 Height) {
     //we want to iterate over ring, so we need Least Common Multiple of ring's sizes 
     //for example: 1 depth buffer, 3 swapchain image, 2 taa images result in 6 framebuffers
     int lcm = 1;
     for (auto imgs : imgs4views){
-        lcm = std::lcm(imgs.size(), lcm);
+        lcm = std::lcm((*imgs).size(), lcm);
     }
     printl(lcm)
+println
     
     (*framebuffers).allocate (lcm);
     for (u32 i = 0; i < lcm; i++) {
         vector<VkImageView> attachments = {};
         for (auto imgs : imgs4views) {
-            printl(imgs.size())
-            int internal_iter = i % imgs.size();
-            attachments.push_back (imgs[internal_iter].view);
+            printl((*imgs).size())
+            int internal_iter = i % (*imgs).size();
+            attachments.push_back ((*imgs)[internal_iter].view);
+            printl((*imgs)[internal_iter].view)
         }
-        VkFramebufferCreateInfo framebufferInfo = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
+        VkFramebufferCreateInfo 
+            framebufferInfo = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
             framebufferInfo.renderPass = renderPass;
             framebufferInfo.attachmentCount = attachments.size();
             framebufferInfo.pAttachments = attachments.data();
@@ -213,7 +216,7 @@ void Renderer::createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<rin
         VK_CHECK (vkCreateFramebuffer (device, &framebufferInfo, NULL, & (*framebuffers)[i]));
     }
 }
-void Renderer::createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>> imgs4views, VkRenderPass renderPass, VkExtent2D extent) {
+void Renderer::createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>*> imgs4views, VkRenderPass renderPass, VkExtent2D extent) {
     createFramebuffers(framebuffers, imgs4views, renderPass, extent.width, extent.height);
 }
 void Renderer::processDeletionQueues() {
@@ -753,6 +756,9 @@ void Renderer::cmdBeginRenderPass(VkCommandBuffer commandBuffer, RenderPass* rpa
         renderPassInfo.pClearValues = rpass->clear_colors.data();
     vkCmdBeginRenderPass (commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     cmdSetViewport(commandBuffer, rpass->extent);
+}
+void Renderer::cmdNextSubpass(VkCommandBuffer commandBuffer, RenderPass* rpass){
+    vkCmdNextSubpass (commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
 }
 void Renderer::cmdEndRenderPass(VkCommandBuffer commandBuffer, RenderPass* rpass){
     vkCmdEndRenderPass (commandBuffer);

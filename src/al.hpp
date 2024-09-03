@@ -112,7 +112,7 @@ typedef struct ComputePipe {
 } ComputePipe;
 
 typedef struct AttachmentDescription {
-    ring<Image> images;
+    ring<Image>* images;
     LoadStoreOp load,store, sload, sstore;
     VkClearValue clear = {};
     VkImageLayout finalLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -120,11 +120,11 @@ typedef struct AttachmentDescription {
 typedef struct SubpassAttachments {
     vector<RasterPipe*> pipes;
     // vector<Image*> a_input;
-    vector<ring<Image>> a_input;
+    vector<ring<Image>*> a_input;
     // vector<Image*> a_color;
-    vector<ring<Image>> a_color;
+    vector<ring<Image>*> a_color;
     // Image* a_depth;
-    ring<Image> a_depth;
+    ring<Image>* a_depth;
 }SubpassAttachments;
 typedef struct SubpassAttachmentRefs {
     vector<VkAttachmentReference> a_input;
@@ -278,8 +278,18 @@ public:
         void present();
     void end_frame(vector<VkCommandBuffer> commandBuffers);
 
+    void cmdBindVertexBuffers(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount, const VkBuffer* pBuffers, const VkDeviceSize* pOffsets){
+        vkCmdBindVertexBuffers(commandBuffer, firstBinding, bindingCount, pBuffers, pOffsets);
+    }
+    void cmdBindIndexBuffer(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkIndexType indexType){
+        vkCmdBindIndexBuffer(commandBuffer, buffer, offset, indexType);
+    }
+    void cmdBindDescriptorSets(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t firstSet, uint32_t descriptorSetCount, const VkDescriptorSet* pDescriptorSets, uint32_t dynamicOffsetCount, const uint32_t* pDynamicOffsets){
+        vkCmdBindDescriptorSets(commandBuffer, pipelineBindPoint, layout, firstSet, descriptorSetCount, pDescriptorSets, dynamicOffsetCount, pDynamicOffsets);
+    }
     void cmdDraw(VkCommandBuffer commandBuffer, u32 vertexCount, u32 instanceCount, u32 firstVertex, u32 firstInstance);
     void cmdBeginRenderPass (VkCommandBuffer commandBuffer, RenderPass* rpass);
+    void cmdNextSubpass (VkCommandBuffer commandBuffer, RenderPass* rpass);
     void cmdEndRenderPass (VkCommandBuffer commandBuffer, RenderPass* rpass);
     void cmdBindPipe (VkCommandBuffer commandBuffer, RasterPipe pipe);
     void cmdBindPipe (VkCommandBuffer commandBuffer, ComputePipe pipe);
@@ -440,8 +450,8 @@ public:
     void createBufferStorages (ring<Buffer>* buffers, VkBufferUsageFlags usage, u32 size, bool host = false);
     void createBufferStorages (Buffer* buffer, VkBufferUsageFlags usage, u32 size, bool host = false);
     VkShaderModule createShaderModule (vector<char>* code);
-    void createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>> imgs4views, VkRenderPass renderPass, u32 Width, u32 Height);
-    void createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>> imgs4views, VkRenderPass renderPass, VkExtent2D extent);
+    void createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>*> imgs4views, VkRenderPass renderPass, u32 Width, u32 Height);
+    void createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>*> imgs4views, VkRenderPass renderPass, VkExtent2D extent);
     void createCommandPool();
     void createCommandBuffers (ring<VkCommandBuffer>* commandBuffers, u32 size);
     void createSyncObjects();

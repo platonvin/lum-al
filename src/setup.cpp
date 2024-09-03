@@ -131,9 +131,10 @@ void Renderer::createRenderPass(vector<AttachmentDescription> attachments, vecto
     vector<VkAttachmentReference  > arefs(attachments.size());
     std::map<void*, u32> img2ref = {};
 
+println
     for(int i=0; i<attachments.size(); i++){
-        adescs[i].format = attachments[i].images[0].format;
-        cout << string_VkFormat(attachments[i].images[0].format) << "\n";
+        adescs[i].format = (*(attachments[i].images))[0].format;
+        cout << string_VkFormat((*(attachments[i].images))[0].format) << "\n";
         adescs[i].samples = VK_SAMPLE_COUNT_1_BIT;
         adescs[i].loadOp  = getOpLoad (attachments[i].load);
         adescs[i].storeOp = getOpStore(attachments[i].store);
@@ -144,33 +145,56 @@ void Renderer::createRenderPass(vector<AttachmentDescription> attachments, vecto
         } else adescs[i].initialLayout = VK_IMAGE_LAYOUT_GENERAL;
         adescs[i].finalLayout = attachments[i].finalLayout;
         arefs[i] = {u32(i), VK_IMAGE_LAYOUT_GENERAL};
-        img2ref[attachments[i].images.data()] = i;
+        img2ref[(*(attachments[i].images)).data()] = i;
     }
+println
 
     vector<VkSubpassDescription > subpasses(sas.size());
     vector<SubpassAttachmentRefs> sas_refs(sas.size());
+println
 
     for(int i=0; i<sas.size(); i++){
-        if(!sas[i].a_depth.empty()){
-            sas_refs[i].a_depth = arefs[img2ref[sas[i].a_depth.data()]];
+println
+        if((sas[i].a_depth) != NULL){         
+            if(! ((*(sas[i].a_depth)).empty()) ){ //pointers are easy
+println
+                sas_refs[i].a_depth = arefs[img2ref[(*(sas[i].a_depth)).data()]];
+println
+            }
         }
-        for(auto color: sas[i].a_color){
-            sas_refs[i].a_color.push_back(arefs[img2ref[color.data()]]);
+println
+        for(auto color: ((sas[i]).a_color)){
+            if(color != NULL){         
+                sas_refs[i].a_color.push_back(arefs[img2ref[(*color).data()]]);
+            }
         }
+println
         for(auto input: sas[i].a_input){
-            sas_refs[i].a_input.push_back(arefs[img2ref[input.data()]]);
+            if(input != NULL){         
+                sas_refs[i].a_input.push_back(arefs[img2ref[(*input).data()]]);
+            }
         }
+println
+        // printl(sas_refs[i].a_input[0].attachment)
     }
+println
 
     for(int i=0; i<sas.size(); i++){
         subpasses[i] = {};
         subpasses[i].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+println
         subpasses[i].colorAttachmentCount = sas_refs[i].a_color.size();
         subpasses[i].pColorAttachments = sas_refs[i].a_color.data();
+println
         subpasses[i].inputAttachmentCount = sas_refs[i].a_input.size();
         subpasses[i].pInputAttachments = sas_refs[i].a_input.data();
-        subpasses[i].pDepthStencilAttachment = (sas[i].a_depth.empty())? NULL : &sas_refs[i].a_depth;
+println
+        if((sas[i].a_depth) != NULL){
+            subpasses[i].pDepthStencilAttachment = (sas[i].a_depth->empty())? NULL : &sas_refs[i].a_depth;
+        }
+println
     }
+println
 
     for(int i=0; i<sas.size(); i++){
         for(auto pipe: sas[i].pipes){
@@ -178,6 +202,7 @@ void Renderer::createRenderPass(vector<AttachmentDescription> attachments, vecto
         }
     }
     printl(sas.size())
+println
     vector<VkSubpassDependency> 
         dependencies (1);
         dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -218,13 +243,15 @@ void Renderer::createRenderPass(vector<AttachmentDescription> attachments, vecto
         }
     }
 
-    vector<ring<Image>> fb_images = {};
+println
+    vector<ring<Image>*> fb_images = {};
     for (auto att : attachments){
         fb_images.push_back(att.images);
     }
-    rpass->extent = {attachments[0].images[0].extent.width, attachments[0].images[0].extent.height};
-    printl(attachments[0].images[0].extent.width)
-    printl(attachments[0].images[0].extent.height)
+    rpass->extent = {(*attachments[0].images)[0].extent.width, (*attachments[0].images)[0].extent.height};
+    printl((*attachments[0].images)[0].extent.width)
+    printl((*attachments[0].images)[0].extent.height)
+println
     createFramebuffers(&rpass->framebuffers, fb_images, rpass->rpass, rpass->extent);
 } 
 
@@ -779,7 +806,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback (
 // vkDebugMarkerSetObjectNameEXT(device, &name);
 // // vkDebugMarkerSetObjectNameEXT(VkDevice device, const VkDebugMarkerObjectNameInfoEXT *pNameInfo)
 // }
-#ifndef VKNDEBUG
+// #ifndef VKNDEBUG
 void Renderer::setupDebugMessenger() {
     VkDebugUtilsMessengerEXT debugMessenger;
     VkDebugUtilsMessengerCreateInfoEXT 
@@ -791,7 +818,7 @@ void Renderer::setupDebugMessenger() {
     VK_CHECK (vkCreateDebugUtilsMessengerEXT (instance, &debugUtilsCreateInfo, NULL, &debugMessenger));
     this->debugMessenger = debugMessenger;
 }
-#endif
+// #endif
 
 void Renderer::getInstanceLayers() {
     uint32_t layerCount;
