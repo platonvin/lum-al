@@ -661,6 +661,7 @@ void Renderer::pickPhysicalDevice() {
         exit (1);
     }
     vkGetPhysicalDeviceProperties (physicalDevice, &physicalDeviceProperties);
+    vkGetPhysicalDeviceFeatures (physicalDevice, &physicalDeviceFeatures);
 }
 
 void Renderer::createLogicalDevice() {

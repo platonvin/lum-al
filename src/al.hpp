@@ -38,6 +38,7 @@ using glm::dmat2, glm::dmat3, glm::dmat4;
 typedef struct Buffer {
     VkBuffer buffer;
     VmaAllocation alloc;
+    void* mapped;
     bool is_mapped = false;
 } Buffer;
 
@@ -49,6 +50,7 @@ typedef struct Image {
     // VkImageLayout layout; everything is in GENERAL.
     VkImageAspectFlags aspect;
     VkExtent3D extent;
+    int mip_levels = 1;
 } Image;
 
 typedef struct ImageDeletion {
@@ -459,6 +461,7 @@ public:
     void createCommandBuffers (ring<VkCommandBuffer>* commandBuffers, u32 size);
     void createSyncObjects();
 
+    void createImageFromMemorySingleTime(Image* image, const void* source, u32 size);
     void createBuffer (VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer* buffer, VkDeviceMemory* bufferMemory);
     void copyBufferSingleTime (VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
     void copyBufferSingleTime (VkBuffer srcBuffer, Image* image, uvec3 size);
@@ -471,7 +474,6 @@ public:
     void processDeletionQueues();
     void getInstanceLayers();
     void getInstanceExtensions();
-
     
     DescriptorCounter descriptorCounter;
     i32 descriptor_sets_count = 0;
@@ -490,6 +492,7 @@ public:
     VkSwapchainKHR swapchain;
 
     VkPhysicalDeviceProperties physicalDeviceProperties;
+    VkPhysicalDeviceFeatures physicalDeviceFeatures;
 
     VkDescriptorPool descriptorPool;
     VmaAllocator VMAllocator;

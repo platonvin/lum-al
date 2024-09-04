@@ -1,7 +1,7 @@
 #pragma once
 
 #include <iostream>
-#include <defines/vk_enum_string_helper.h> //idk why but it is neither shipped with Linux Vulkan SDK nor bundled in vcpkg vulkan-sdk-components
+#include "vk_enum_string_helper.h" //idk why but it is neither shipped with Linux Vulkan SDK nor bundled in vcpkg vulkan-sdk-components
 
 #define KEND  "\x1B[0m"
 #define KRED  "\x1B[31m"

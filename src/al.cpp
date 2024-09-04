@@ -40,6 +40,7 @@ void Renderer::init (Settings settings) {
     pickPhysicalDevice();
     createLogicalDevice();
     createAllocator();
+    printl(VMAllocator);
     createSwapchain(); //should be before anything related to its size and format
     createSwapchainImageViews();
     createCommandPool();
@@ -488,6 +489,45 @@ void Renderer::createSamplers() {
 
 }
 
+void Renderer::createImageFromMemorySingleTime(Image* image, const void* source, u32 bufferSize){
+    assert (bufferSize != 0);
+    VkBufferCreateInfo 
+        stagingBufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+        stagingBufferInfo.size = bufferSize;
+        stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    VmaAllocationCreateInfo 
+        stagingAllocInfo = {};
+        stagingAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+        stagingAllocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        stagingAllocInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    VkBuffer stagingBuffer = {};
+    VmaAllocation stagingAllocation = {};
+
+    VK_CHECK (vmaCreateBuffer (VMAllocator, &stagingBufferInfo, &stagingAllocInfo, &stagingBuffer, &stagingAllocation, NULL));
+    void* data = NULL;
+    VK_CHECK (vmaMapMemory (VMAllocator, stagingAllocation, &data));
+    memcpy (data, source, bufferSize);
+    vmaUnmapMemory (VMAllocator, stagingAllocation);
+
+    VkCommandBuffer copyCommandBuffer = beginSingleTimeCommands();
+    cmdExplicitTransLayoutBarrier (copyCommandBuffer, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
+                                   VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                   VK_ACCESS_NONE, VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+                                   image);
+    VkBufferImageCopy staging_copy = {};
+        staging_copy.imageExtent = image->extent;
+        staging_copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        staging_copy.imageSubresource.baseArrayLayer = 0;
+        staging_copy.imageSubresource.mipLevel = 0;
+        staging_copy.imageSubresource.layerCount = 1;
+    vkCmdCopyBufferToImage (copyCommandBuffer, stagingBuffer, image->image, VK_IMAGE_LAYOUT_GENERAL, 1, &staging_copy);
+    cmdExplicitTransLayoutBarrier (copyCommandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
+                                   VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                   VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+                                   image);
+    vmaDestroyBuffer(VMAllocator, stagingBuffer, stagingAllocation);
+    endSingleTimeCommands(copyCommandBuffer);
+}
 //slow.
 void Renderer::copyBufferSingleTime (VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
     VkCommandBuffer commandBuffer = beginSingleTimeCommands();
