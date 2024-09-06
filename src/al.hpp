@@ -77,11 +77,14 @@ enum BlendAttachment {
     BLEND_REPLACE_IF_LESS, //basically max
 };
 enum DepthTesting {
-    NO_DEPTH_TEST,
-    FULL_DEPTH_TEST,
-    READ_DEPTH_TEST,
-    WRITE_DEPTH_TEST,
+    DEPTH_TEST_NONE_BIT  = 0,
+    DEPTH_TEST_READ_BIT  = 1 << 0,
+    DEPTH_TEST_WRITE_BIT = 1 << 1,
 };
+inline DepthTesting operator|(DepthTesting a, DepthTesting b)
+{
+    return DepthTesting(int(a) | int(b));
+}
 //it was not discard in fragment. FML
 enum Discard {
     NO_DISCARD,
@@ -217,6 +220,14 @@ typedef struct Settings {
     bool fullscreen = false;
     bool debug = false;
     bool profile = false;
+    VkPhysicalDeviceFeatures deviceFeatures = {};
+    VkPhysicalDeviceVulkan11Features deviceFeatures11 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES};
+    VkPhysicalDeviceVulkan12Features deviceFeatures12 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
+    VkPhysicalDeviceFeatures2 physical_features2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+    Settings(){
+        deviceFeatures12.pNext = &deviceFeatures11;
+        physical_features2.pNext = &deviceFeatures12;
+    }
 } Settings;
 
 //hash for VkSamplerCreateInfo
@@ -342,8 +353,9 @@ public:
     VkFormat findSupportedFormat (vector<VkFormat> candidates, VkImageType type, VkImageTiling tiling, VkImageUsageFlags usage);
 
     void createRasterPipeline (RasterPipe* pipe, VkDescriptorSetLayout extra_dynamic_layout, vector<ShaderStage> shader_stages, vector<AttrFormOffs> attr_desc,
-                                 u32 stride, VkVertexInputRate input_rate, VkPrimitiveTopology topology,
-                                 VkExtent2D extent, vector<BlendAttachment> blends, u32 push_size, DepthTesting depthTest, VkCullModeFlags culling, Discard discard, VkStencilOpState stencil);
+                                 u32 stride, VkVertexInputRate input_rate, VkPrimitiveTopology topology, 
+                                 VkExtent2D extent, vector<BlendAttachment> blends, u32 push_size, DepthTesting depthTest, VkCompareOp depthCompareOp, 
+                                 VkCullModeFlags culling, Discard discard, VkStencilOpState stencil);
     void destroyRasterPipeline (RasterPipe* pipe);
 
     void createComputePipeline (ComputePipe* pipe, VkDescriptorSetLayout extra_dynamic_layout, const char* src, u32 push_size, VkPipelineCreateFlags create_flags);
@@ -354,7 +366,8 @@ public:
     void setupDescriptor (VkDescriptorSetLayout* dsetLayout, ring<VkDescriptorSet>* descriptors, vector<DescriptorInfo> description, VkShaderStageFlags stages);
     void flushDescriptorSetup();
     vector<DelayedDescriptorSetup> delayed_descriptor_setups;
-    void createSamplers();
+    void createSampler(VkSampler* sampler, VkFilter mag, VkFilter min, 
+    VkSamplerAddressMode U, VkSamplerAddressMode V, VkSamplerAddressMode W);
 
     class DescriptorSetupBuilder {
     private:
@@ -379,7 +392,7 @@ public:
     class PipeBuilder {
     private:
         Renderer& renderer;
-        VkDescriptorSetLayout extra_dynamic_layout = {};
+        VkDescriptorSetLayout extra_dynamic_layout = 0;
         vector<ShaderStage> shader_stages;
         vector<AttrFormOffs> attr_desc;
         u32 stride = 0;
@@ -388,7 +401,8 @@ public:
         VkExtent2D extent = {0, 0};
         vector<BlendAttachment> blends;
         u32 push_size = 0;
-        DepthTesting depthTest = NO_DEPTH_TEST;
+        DepthTesting depthTest = DEPTH_TEST_NONE_BIT;
+        VkCompareOp depthCompareOp = VK_COMPARE_OP_NEVER;
         VkCullModeFlags culling = VK_CULL_MODE_NONE;
         Discard discard = NO_DISCARD;
         VkStencilOpState stencil = NO_STENCIL;
@@ -397,26 +411,29 @@ public:
     public:
         PipeBuilder(Renderer& renderer) : renderer(renderer) {}
 
-        PipeBuilder& setExtraDynamicLayout(VkDescriptorSetLayout layout)   {extra_dynamic_layout = layout;  return *this;}
-        PipeBuilder& setStride(u32 s)                                      {stride = s;                     return *this;}
-        PipeBuilder& setInputRate(VkVertexInputRate rate)                  {input_rate = rate;              return *this;}
-        PipeBuilder& setTopology(VkPrimitiveTopology topo)                 {topology = topo;                return *this;}
-        PipeBuilder& setExtent(VkExtent2D e)                               {extent = e;                     return *this;}
-        PipeBuilder& setPushConstantSize(u32 size)                         {push_size = size;               return *this;}
-        PipeBuilder& setDepthTesting(DepthTesting depth)                   {depthTest = depth;              return *this;}
-        PipeBuilder& setCulling(VkCullModeFlags cull)                      {culling = cull;                 return *this;}
-        PipeBuilder& setDiscard(Discard disc)                              {discard = disc;                 return *this;}
-        PipeBuilder& setStencil(VkStencilOpState st)                       {stencil = st;                   return *this;}
-        PipeBuilder& setCreateFlags(VkPipelineCreateFlags flags)           {create_flags = flags;           return *this;}
-        PipeBuilder& setAttributes(vector<AttrFormOffs> const& attributes) {attr_desc = attributes;         return *this;}
-        PipeBuilder& setBlends(vector<BlendAttachment> const& b)           {blends = b;                     return *this;}
-        PipeBuilder& setStages(vector<ShaderStage> const& stages)          {shader_stages = stages;         return *this;}
+        PipeBuilder& setExtraDynamicLayout(VkDescriptorSetLayout layout)   {extra_dynamic_layout = layout; return *this;}
+        PipeBuilder& setStride(u32 s)                                      {stride = s;                    return *this;}
+        PipeBuilder& setInputRate(VkVertexInputRate rate)                  {input_rate = rate;             return *this;}
+        PipeBuilder& setTopology(VkPrimitiveTopology topo)                 {topology = topo;               return *this;}
+        PipeBuilder& setExtent(VkExtent2D e)                               {extent = e;                    return *this;}
+        PipeBuilder& setPushConstantSize(u32 size)                         {push_size = size;              return *this;}
+        PipeBuilder& setDepthTesting(DepthTesting depth)                   {depthTest = depth;             return *this;}
+        PipeBuilder& setDepthCompareOp(VkCompareOp op)                     {depthCompareOp = op;           return *this;}
+        PipeBuilder& setCulling(VkCullModeFlags cull)                      {culling = cull;                return *this;}
+        PipeBuilder& setDiscard(Discard disc)                              {discard = disc;                return *this;}
+        PipeBuilder& setStencil(VkStencilOpState st)                       {stencil = st;                  return *this;}
+        PipeBuilder& setCreateFlags(VkPipelineCreateFlags flags)           {create_flags = flags;          return *this;}
+        PipeBuilder& setAttributes(vector<AttrFormOffs> const& attributes) {attr_desc = attributes;        return *this;}
+        PipeBuilder& setBlends(vector<BlendAttachment> const& b)           {blends = b;                    return *this;}
+        PipeBuilder& setStages(vector<ShaderStage> const& stages)          {shader_stages = stages;        return *this;}
 
         void buildRaster(RasterPipe*  pipe) {
-            renderer.createRasterPipeline(pipe, extra_dynamic_layout, shader_stages, attr_desc, stride, input_rate, topology, extent, blends, push_size, depthTest, culling, discard, stencil);
+            renderer.createRasterPipeline(pipe, extra_dynamic_layout, shader_stages, attr_desc, stride, input_rate, topology, extent, blends, push_size, depthTest, depthCompareOp, culling, discard, stencil);
+            extra_dynamic_layout = 0;
         }
         void buildCompute(ComputePipe* pipe) {
             renderer.createComputePipeline(pipe, extra_dynamic_layout, shader_stages[0].src, push_size, create_flags);
+            extra_dynamic_layout = 0;
         }
     };
     class RenderPassBuilder {
@@ -424,14 +441,14 @@ public:
         Renderer& renderer;                           // Reference to the renderer
         vector<AttachmentDescription> attachments_;    // Attachments for the render pass
         vector<SubpassAttachments> subpasses_;         // Subpasses for the render pass
-        vector<VkClearValue> clear_colors;
+        // vector<VkClearValue> clear_colors;
 
     public:
         RenderPassBuilder(Renderer& renderer) : renderer(renderer) {}
 
         RenderPassBuilder& setAttachments(vector<AttachmentDescription> const& attachments) {attachments_ = attachments; return *this;}
         RenderPassBuilder& setSubpasses(vector<SubpassAttachments> const& subpasses)        {subpasses_ = subpasses;     return *this;}
-        RenderPassBuilder& setClearColors(vector<VkClearValue> const& clears)               {clear_colors = clears;      return *this;}
+        // RenderPassBuilder& setClearColors(vector<VkClearValue> const& clears)               {clear_colors = clears;      return *this;}
 
         void build(RenderPass* rpass) const {
             renderer.createRenderPass(attachments_, subpasses_, rpass);

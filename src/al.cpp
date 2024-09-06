@@ -329,16 +329,15 @@ void Renderer::end_frame(vector<VkCommandBuffer> commandBuffers) {
     
     vector<VkSemaphore> signalSemaphores = {renderFinishedSemaphores.current()};
     vector<VkSemaphore> waitSemaphores = {imageAvailableSemaphores.current()};
-    VkPipelineStageFlags waitStages[] = {
-        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-    };
+
+    vector<VkPipelineStageFlags> waitStages (commandBuffers.size(), VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 
     VkSubmitInfo 
         submitInfo = {};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submitInfo.waitSemaphoreCount = waitSemaphores.size();
         submitInfo.pWaitSemaphores = waitSemaphores.data();
-        submitInfo.pWaitDstStageMask = waitStages;
+        submitInfo.pWaitDstStageMask = waitStages.data();
         submitInfo.commandBufferCount = commandBuffers.size();
         submitInfo.pCommandBuffers = commandBuffers.data();
         submitInfo.signalSemaphoreCount = signalSemaphores.size();
@@ -485,8 +484,24 @@ void Renderer::cmdExplicitTransLayoutBarrier (VkCommandBuffer commandBuffer, VkI
     );
 }
 
-void Renderer::createSamplers() {
-
+void Renderer::createSampler(VkSampler* sampler, VkFilter mag, VkFilter min, 
+    VkSamplerAddressMode U, VkSamplerAddressMode V, VkSamplerAddressMode W) {
+    VkSamplerCreateInfo samplerInfo{};
+		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		samplerInfo.magFilter = mag;
+		samplerInfo.minFilter = min;
+		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		samplerInfo.addressModeU = U;
+		samplerInfo.addressModeV = V;
+		samplerInfo.addressModeW = W;
+		samplerInfo.compareOp = VK_COMPARE_OP_NEVER;
+		samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+		samplerInfo.maxAnisotropy = 1.0;
+		samplerInfo.anisotropyEnable = VK_FALSE;
+		samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
+		samplerInfo.maxAnisotropy = 8.0f; //safe i guess
+		samplerInfo.anisotropyEnable = VK_TRUE;
+		VK_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, sampler));
 }
 
 void Renderer::createImageFromMemorySingleTime(Image* image, const void* source, u32 bufferSize){

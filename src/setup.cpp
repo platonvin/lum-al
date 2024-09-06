@@ -139,6 +139,7 @@ void Renderer::createRenderPass(vector<AttachmentDescription> attachments, vecto
     vector<VkAttachmentDescription> adescs(attachments.size());
     vector<VkAttachmentReference  > arefs(attachments.size());
     std::map<void*, u32> img2ref = {};
+    vector<VkClearValue> clears = {};
 
 println
     for(int i=0; i<attachments.size(); i++){
@@ -149,13 +150,17 @@ println
         adescs[i].storeOp = getOpStore(attachments[i].store);
         adescs[i].stencilLoadOp  = getOpLoad (attachments[i].sload);
         adescs[i].stencilStoreOp = getOpStore(attachments[i].sstore);
-        if((attachments[i].load == DontCare) && (attachments[i].sload == DontCare)){
-            adescs[i].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        if(
+            ((attachments[i].load == DontCare) || (attachments[i].load == Clear)) && 
+            ((attachments[i].sload == DontCare) || (attachments[i].sload == Clear))){
+                adescs[i].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         } else adescs[i].initialLayout = VK_IMAGE_LAYOUT_GENERAL;
         adescs[i].finalLayout = attachments[i].finalLayout;
         arefs[i] = {u32(i), VK_IMAGE_LAYOUT_GENERAL};
         img2ref[(*(attachments[i].images)).data()] = i;
+        clears.push_back(attachments[i].clear);
     }
+    rpass->clear_colors = clears;
 println
 
     vector<VkSubpassDescription > subpasses(sas.size());
@@ -216,15 +221,15 @@ println
         dependencies (1);
         dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
         dependencies[0].dstSubpass = 0;
-        dependencies[0].srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-        dependencies[0].dstStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
+        dependencies[0].srcStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+        dependencies[0].dstStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
         dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
         dependencies[0].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
         dependencies[0].dependencyFlags = 0;
     VkSubpassDependency 
         full_wait = {};
-        full_wait.srcStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
-        full_wait.dstStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
+        full_wait.srcStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+        full_wait.dstStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
         full_wait.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
         full_wait.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
         full_wait.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
@@ -235,6 +240,12 @@ println
             dependencies.push_back (full_wait);
         }
     }
+        full_wait.srcSubpass = sas.size()-1;
+        full_wait.dstSubpass = VK_SUBPASS_EXTERNAL;
+        full_wait.dependencyFlags = 0;
+        dependencies.push_back (full_wait);
+
+    
     VkRenderPassCreateInfo 
         createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -283,7 +294,7 @@ static bool stencil_is_empty (VkStencilOpState stencil) {
 
 void Renderer::createRasterPipeline (RasterPipe* pipe, VkDescriptorSetLayout extra_dynamic_layout, vector<ShaderStage> shader_stages, vector<AttrFormOffs> attr_desc,
                                        u32 stride, VkVertexInputRate input_rate, VkPrimitiveTopology topology,
-                                       VkExtent2D extent, vector<BlendAttachment> blends, u32 push_size, DepthTesting depthTest, VkCullModeFlags culling, Discard discard, const VkStencilOpState stencil) {
+                                       VkExtent2D extent, vector<BlendAttachment> blends, u32 push_size, DepthTesting depthTest, VkCompareOp depthCompareOp, VkCullModeFlags culling, Discard discard, const VkStencilOpState stencil) {
     vector<VkShaderModule > shader_modules (shader_stages.size());
     vector<VkPipelineShaderStageCreateInfo> shaderStages (shader_stages.size());
     for (int i = 0; i < shader_stages.size(); i++) {
@@ -444,32 +455,13 @@ void Renderer::createRasterPipeline (RasterPipe* pipe, VkDescriptorSetLayout ext
     }
     VK_CHECK (vkCreatePipelineLayout (device, &pipelineLayoutInfo, NULL, &pipe->lineLayout));
     //if not depthTest then just not used. Done this way because same dept state used everywhere on not used at all
+    
     VkPipelineDepthStencilStateCreateInfo
         depthStencil = {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
-    switch (depthTest) {
-        case NO_DEPTH_TEST: {
-            depthStencil.depthTestEnable = VK_FALSE;
-            depthStencil.depthWriteEnable = VK_FALSE;
-            break;
-        }
-        case FULL_DEPTH_TEST: {
-            depthStencil.depthTestEnable = VK_TRUE;
-            depthStencil.depthWriteEnable = VK_TRUE;
-            break;
-        }
-        case READ_DEPTH_TEST: {
-            depthStencil.depthTestEnable = VK_TRUE;
-            depthStencil.depthWriteEnable = VK_FALSE;
-            break;
-        }
-        case WRITE_DEPTH_TEST: {
-            depthStencil.depthTestEnable = VK_FALSE;
-            depthStencil.depthWriteEnable = VK_TRUE;
-            break;
-        }
-        default: crash (whats depthTest);
-    }
-        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+        if(depthTest & DEPTH_TEST_READ_BIT) depthStencil.depthTestEnable = VK_TRUE;
+        if(depthTest & DEPTH_TEST_WRITE_BIT) depthStencil.depthWriteEnable = VK_TRUE;
+
+        depthStencil.depthCompareOp =   depthCompareOp;
         depthStencil.depthBoundsTestEnable = VK_FALSE;
         depthStencil.minDepthBounds = 0.0f;
         depthStencil.maxDepthBounds = 1.0f;
@@ -489,7 +481,7 @@ void Renderer::createRasterPipeline (RasterPipe* pipe, VkDescriptorSetLayout ext
         pipelineInfo.pViewportState = &viewportState;
         pipelineInfo.pRasterizationState = &rasterizer;
         pipelineInfo.pMultisampleState = &multisampling;
-    if ((depthTest == NO_DEPTH_TEST) and (stencil_is_empty (stencil))) {
+    if ((depthTest & DEPTH_TEST_NONE_BIT) and (stencil_is_empty (stencil))) {
         pipelineInfo.pDepthStencilState = NULL;
     } else {
         pipelineInfo.pDepthStencilState = &depthStencil;
@@ -678,29 +670,6 @@ void Renderer::createLogicalDevice() {
             queueCreateInfo.pQueuePriorities = &queuePriority;
         queueCreateInfos.push_back (queueCreateInfo);
     }
-    VkPhysicalDeviceFeatures 
-        deviceFeatures = {};
-        deviceFeatures.vertexPipelineStoresAndAtomics = VK_TRUE;
-        deviceFeatures.fragmentStoresAndAtomics = VK_TRUE;
-        deviceFeatures.geometryShader = VK_TRUE;
-        deviceFeatures.independentBlend = VK_TRUE;
-        deviceFeatures.shaderInt16 = VK_TRUE;
-    VkPhysicalDeviceVulkan11Features 
-        deviceFeatures11 = {};
-        deviceFeatures11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
-        deviceFeatures11.storagePushConstant16 = VK_TRUE;
-    VkPhysicalDeviceVulkan12Features 
-        deviceFeatures12 = {};
-        deviceFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-        deviceFeatures12.storagePushConstant8 = VK_TRUE;
-        deviceFeatures12.shaderInt8 = VK_TRUE;
-        deviceFeatures12.storageBuffer8BitAccess = VK_TRUE;
-        deviceFeatures12.pNext = &deviceFeatures11;
-    VkPhysicalDeviceFeatures2 
-        physical_features2 = {};
-        physical_features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-        physical_features2.pNext = &deviceFeatures12;
-        physical_features2.features = deviceFeatures;
     VkDeviceCreateInfo 
         createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -711,7 +680,8 @@ void Renderer::createLogicalDevice() {
         createInfo.ppEnabledExtensionNames = deviceExtensions.data();
         createInfo.enabledLayerCount = instanceLayers.size();
         createInfo.ppEnabledLayerNames = instanceLayers.data();
-        createInfo.pNext = &physical_features2;
+            settings.physical_features2.features = settings.deviceFeatures;
+        createInfo.pNext = &settings.physical_features2;
     VK_CHECK (vkCreateDevice (physicalDevice, &createInfo, NULL, &device));
     vkGetDeviceQueue (device, indices.graphicalAndCompute.value(), 0, &graphicsQueue);
     // vkGetDeviceQueue(device, indices.graphicalAndCompute.value(), 0, &computeQueue);
