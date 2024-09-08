@@ -504,6 +504,9 @@ void Renderer::createSampler(VkSampler* sampler, VkFilter mag, VkFilter min,
 		VK_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, sampler));
 }
 
+void Renderer::destroySampler(VkSampler sampler){
+    vkDestroySampler(device, sampler, NULL);
+}
 void Renderer::createImageFromMemorySingleTime(Image* image, const void* source, u32 bufferSize){
     assert (bufferSize != 0);
     VkBufferCreateInfo 

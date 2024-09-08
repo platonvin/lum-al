@@ -153,7 +153,7 @@ public:
     }
     
 private:
-    _Type* buffer;
-    size_t size_;
-    size_t current_index;
+    _Type* buffer = NULL;
+    size_t size_ = 0;
+    size_t current_index = 0;
 };

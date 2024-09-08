@@ -368,6 +368,7 @@ public:
     vector<DelayedDescriptorSetup> delayed_descriptor_setups;
     void createSampler(VkSampler* sampler, VkFilter mag, VkFilter min, 
     VkSamplerAddressMode U, VkSamplerAddressMode V, VkSamplerAddressMode W);
+    void destroySampler(VkSampler sampler);
 
     class DescriptorSetupBuilder {
     private:

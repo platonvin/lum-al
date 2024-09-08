@@ -222,14 +222,14 @@ println
         dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
         dependencies[0].dstSubpass = 0;
         dependencies[0].srcStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-        dependencies[0].dstStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+        dependencies[0].dstStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
         dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
         dependencies[0].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
         dependencies[0].dependencyFlags = 0;
     VkSubpassDependency 
         full_wait = {};
-        full_wait.srcStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-        full_wait.dstStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+        full_wait.srcStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
+        full_wait.dstStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
         full_wait.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
         full_wait.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
         full_wait.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
@@ -242,6 +242,7 @@ println
     }
         full_wait.srcSubpass = sas.size()-1;
         full_wait.dstSubpass = VK_SUBPASS_EXTERNAL;
+        full_wait.dstStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT|VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
         full_wait.dependencyFlags = 0;
         dependencies.push_back (full_wait);
 
