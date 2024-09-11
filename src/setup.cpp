@@ -973,7 +973,7 @@ void Renderer::createBufferStorages (ring<Buffer>* buffers, VkBufferUsageFlags u
         VmaAllocationCreateInfo allocInfo = {};
         if (host) {
             allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-            allocInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+            allocInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
         }
         allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
         VK_CHECK (vmaCreateBuffer (VMAllocator, &bufferInfo, &allocInfo, & (*buffers)[i].buffer, & (*buffers)[i].alloc, NULL));
@@ -986,10 +986,11 @@ void Renderer::createBufferStorages (Buffer* buffer, VkBufferUsageFlags usage, u
         bufferInfo.size = size;
         bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         bufferInfo.usage = usage;
-    VmaAllocationCreateInfo allocInfo = {};
+    VmaAllocationCreateInfo \
+        allocInfo = {};
     if (host) {
         allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-        allocInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        allocInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
     }
     allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
     VK_CHECK (vmaCreateBuffer (VMAllocator, &bufferInfo, &allocInfo, & (*buffer).buffer, & (*buffer).alloc, NULL));
@@ -997,7 +998,7 @@ void Renderer::createBufferStorages (Buffer* buffer, VkBufferUsageFlags usage, u
 
 #define MAKE_DESCRIPTOR_TYPE(name)\
     case name:\
-        descriptorCounter.name##_COUNTER ++;\
+        descriptorCounter.name##_COUNTER += settings.fif;\
         break;
 void Renderer::countDescriptor (const VkDescriptorType type) {
     switch (type) {

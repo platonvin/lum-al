@@ -70,7 +70,7 @@ shaders: examples/triag.vert examples/triag.frag examples/posteffect.frag
 	$(GLSLC) -o examples/posteffect.spv examples/posteffect.frag
 
 # c++ $(lib_objs) $(I) $(L) $(REQUIRED_LIBS) $(STATIC_OR_DYNAMIC) -c -o lumal 
-library: $(lib_objs)
+library: init $(lib_objs)
 	ar rvs lib/liblumal.a $(lib_objs)
 
 build_example: library obj/triangle.o
