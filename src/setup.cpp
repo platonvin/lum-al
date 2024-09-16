@@ -42,24 +42,32 @@ const vector<const char*> deviceExtensions = {
 };
 
 void Renderer::createCommandPool() {
-    QueueFamilyIndices queueFamilyIndices = findQueueFamilies (physicalDevice);
-    VkCommandPoolCreateInfo
+    QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
+    assert(queueFamilyIndices.graphicalAndCompute.has_value());
+
+    VkCommandPoolCreateInfo 
         poolInfo = {};
         poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
         poolInfo.queueFamilyIndex = queueFamilyIndices.graphicalAndCompute.value();
-    VK_CHECK (vkCreateCommandPool (device, &poolInfo, NULL, &commandPool));
+
+    VK_CHECK(vkCreateCommandPool(device, &poolInfo, NULL, &commandPool));
 }
 
-void Renderer::createCommandBuffers (ring<VkCommandBuffer>* commandBuffers, u32 size) {
-    (*commandBuffers).allocate (size);
+void Renderer::createCommandBuffers(ring<VkCommandBuffer>* commandBuffers, u32 size) {
+    assert(commandBuffers != NULL);
+    assert(size > 0);
+    
+    commandBuffers->allocate(size);
+
     VkCommandBufferAllocateInfo 
-        allocInfo{};
+        allocInfo = {};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         allocInfo.commandPool = commandPool;
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandBufferCount = (*commandBuffers).size();
-    VK_CHECK (vkAllocateCommandBuffers (device, &allocInfo, (*commandBuffers).data()));
+        allocInfo.commandBufferCount = commandBuffers->size();
+
+    VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, commandBuffers->data()));
 }
 
 void Renderer::createSyncObjects() {
@@ -80,18 +88,25 @@ void Renderer::createSyncObjects() {
     }
 }
 
-vector<char> readFile (const char* filename) {
-    std::ifstream file (filename, std::ios::ate | std::ios::binary);
-    assert (file.is_open());
+vector<char> readFile(const char* filename) {
+    std::ifstream file(filename, std::ios::ate | std::ios::binary);
+    assert(file.is_open());
+
     u32 fileSize = file.tellg();
-    vector<char> buffer (fileSize);
-    file.seekg (0);
-    file.read (buffer.data(), fileSize);
+    assert(fileSize > 0);
+
+    vector<char> buffer(fileSize);
+    file.seekg(0);
+    file.read(buffer.data(), fileSize);
     file.close();
+
     return buffer;
 }
 
 VkShaderModule Renderer::createShaderModule (vector<char>* code) {
+    assert(code != NULL);
+    assert(!code->empty());
+    
     VkShaderModule shaderModule;
     VkShaderModuleCreateInfo 
         createInfo = {};
@@ -135,14 +150,20 @@ void Renderer::destroyRenderPass(RenderPass* rpass){
 void Renderer::deviceWaitIdle(){
     vkDeviceWaitIdle(device);
 }
-void Renderer::createRenderPass(vector<AttachmentDescription> attachments, vector<SubpassAttachments> sas, RenderPass* rpass){
+void Renderer::createRenderPass(vector<AttachmentDescription> attachments, vector<SubpassAttachments> spassAttachs, RenderPass* rpass){
+    assert(rpass != NULL);
+    assert(!attachments.empty());
+    assert(!spassAttachs.empty());
+
     vector<VkAttachmentDescription> adescs(attachments.size());
     vector<VkAttachmentReference  > arefs(attachments.size());
     std::map<void*, u32> img2ref = {};
     vector<VkClearValue> clears = {};
 
-println
     for(int i=0; i<attachments.size(); i++){
+        assert(attachments[i].images != NULL);
+        assert(!attachments[i].images->empty());  
+
         adescs[i].format = (*(attachments[i].images))[0].format;
         cout << string_VkFormat((*(attachments[i].images))[0].format) << "\n";
         adescs[i].samples = VK_SAMPLE_COUNT_1_BIT;
@@ -150,73 +171,61 @@ println
         adescs[i].storeOp = getOpStore(attachments[i].store);
         adescs[i].stencilLoadOp  = getOpLoad (attachments[i].sload);
         adescs[i].stencilStoreOp = getOpStore(attachments[i].sstore);
-        if(
-            ((attachments[i].load == DontCare) || (attachments[i].load == Clear)) && 
+        
+        if( ((attachments[i].load == DontCare) || (attachments[i].load == Clear)) && 
             ((attachments[i].sload == DontCare) || (attachments[i].sload == Clear))){
                 adescs[i].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         } else adescs[i].initialLayout = VK_IMAGE_LAYOUT_GENERAL;
+
         adescs[i].finalLayout = attachments[i].finalLayout;
         arefs[i] = {u32(i), VK_IMAGE_LAYOUT_GENERAL};
         img2ref[(*(attachments[i].images)).data()] = i;
         clears.push_back(attachments[i].clear);
     }
     rpass->clear_colors = clears;
-println
 
-    vector<VkSubpassDescription > subpasses(sas.size());
-    vector<SubpassAttachmentRefs> sas_refs(sas.size());
-println
+    vector<VkSubpassDescription > subpasses(spassAttachs.size());
+    vector<SubpassAttachmentRefs> sas_refs(spassAttachs.size());
 
-    for(int i=0; i<sas.size(); i++){
-println
-        if((sas[i].a_depth) != NULL){         
-            if(! ((*(sas[i].a_depth)).empty()) ){ //pointers are easy
-println
-                sas_refs[i].a_depth = arefs[img2ref[(*(sas[i].a_depth)).data()]];
-println
-            }
+    for(int i=0; i<spassAttachs.size(); i++){
+        if((spassAttachs[i].a_depth) != NULL){      
+            assert(!spassAttachs[i].a_depth->empty());   
+            sas_refs[i].a_depth = arefs[img2ref[(*(spassAttachs[i].a_depth)).data()]];
         }
-println
-        for(auto color: ((sas[i]).a_color)){
+        for(auto color: ((spassAttachs[i]).a_color)){
             if(color != NULL){         
+                assert(!color->empty());
                 sas_refs[i].a_color.push_back(arefs[img2ref[(*color).data()]]);
             }
         }
-println
-        for(auto input: sas[i].a_input){
+        for(auto input: spassAttachs[i].a_input){
             if(input != NULL){         
+                assert(!input->empty());
                 sas_refs[i].a_input.push_back(arefs[img2ref[(*input).data()]]);
             }
         }
-println
         // printl(sas_refs[i].a_input[0].attachment)
     }
-println
 
-    for(int i=0; i<sas.size(); i++){
+    for(int i=0; i<spassAttachs.size(); i++){
         subpasses[i] = {};
         subpasses[i].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-println
         subpasses[i].colorAttachmentCount = sas_refs[i].a_color.size();
         subpasses[i].pColorAttachments = sas_refs[i].a_color.data();
-println
         subpasses[i].inputAttachmentCount = sas_refs[i].a_input.size();
         subpasses[i].pInputAttachments = sas_refs[i].a_input.data();
-println
-        if((sas[i].a_depth) != NULL){
-            subpasses[i].pDepthStencilAttachment = (sas[i].a_depth->empty())? NULL : &sas_refs[i].a_depth;
+        if((spassAttachs[i].a_depth) != NULL){
+            subpasses[i].pDepthStencilAttachment = (spassAttachs[i].a_depth->empty())? NULL : &sas_refs[i].a_depth;
         }
-println
     }
-println
 
-    for(int i=0; i<sas.size(); i++){
-        for(auto pipe: sas[i].pipes){
+    for(int i=0; i<spassAttachs.size(); i++){
+        for(auto pipe: spassAttachs[i].pipes){
+            assert(pipe != NULL);
             pipe->subpassId = i;
         }
     }
-    printl(sas.size())
-println
+    printl(spassAttachs.size())
     vector<VkSubpassDependency> 
         dependencies (1);
         dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -233,14 +242,14 @@ println
         full_wait.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
         full_wait.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
         full_wait.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-    for (int i = 0; i < sas.size(); i++) {
-        for (int j = i + 1; j < sas.size(); j++) {
+    for (int i = 0; i < spassAttachs.size(); i++) {
+        for (int j = i + 1; j < spassAttachs.size(); j++) {
             full_wait.srcSubpass = i;
             full_wait.dstSubpass = j;
             dependencies.push_back (full_wait);
         }
     }
-        full_wait.srcSubpass = sas.size()-1;
+        full_wait.srcSubpass = spassAttachs.size()-1;
         full_wait.dstSubpass = VK_SUBPASS_EXTERNAL;
         full_wait.dstStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT|VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
         full_wait.dependencyFlags = 0;
@@ -258,13 +267,12 @@ println
         createInfo.pDependencies = dependencies.data();
     VK_CHECK (vkCreateRenderPass (device, &createInfo, NULL, &rpass->rpass));
     
-    for(int i=0; i<sas.size(); i++){
-        for(auto pipe: sas[i].pipes){
+    for(int i=0; i<spassAttachs.size(); i++){
+        for(auto pipe: spassAttachs[i].pipes){
             pipe->renderPass = rpass->rpass;
         }
     }
 
-println
     vector<ring<Image>*> fb_images = {};
     for (auto att : attachments){
         fb_images.push_back(att.images);
@@ -272,11 +280,11 @@ println
     rpass->extent = {(*attachments[0].images)[0].extent.width, (*attachments[0].images)[0].extent.height};
     printl((*attachments[0].images)[0].extent.width)
     printl((*attachments[0].images)[0].extent.height)
-println
     createFramebuffers(&rpass->framebuffers, fb_images, rpass->rpass, rpass->extent);
 } 
 
 void Renderer::destroyRasterPipeline (RasterPipe* pipe) {
+    assert(pipe != NULL);
     vkDestroyPipeline (device, pipe->line, NULL);
     vkDestroyPipelineLayout (device, pipe->lineLayout, NULL);
     vkDestroyDescriptorSetLayout (device, pipe->setLayout, NULL);
@@ -294,13 +302,18 @@ static bool stencil_is_empty (VkStencilOpState stencil) {
 }
 
 void Renderer::createRasterPipeline (RasterPipe* pipe, VkDescriptorSetLayout extra_dynamic_layout, vector<ShaderStage> shader_stages, vector<AttrFormOffs> attr_desc,
-                                       u32 stride, VkVertexInputRate input_rate, VkPrimitiveTopology topology,
-                                       VkExtent2D extent, vector<BlendAttachment> blends, u32 push_size, DepthTesting depthTest, VkCompareOp depthCompareOp, VkCullModeFlags culling, Discard discard, const VkStencilOpState stencil) {
+                                     u32 stride, VkVertexInputRate input_rate, VkPrimitiveTopology topology,
+                                     VkExtent2D extent, vector<BlendAttachment> blends, u32 push_size, DepthTesting depthTest, VkCompareOp depthCompareOp, VkCullModeFlags culling, Discard discard, const VkStencilOpState stencil) {
+    assert(pipe != NULL);
+    assert(!shader_stages.empty());
+
     vector<VkShaderModule > shader_modules (shader_stages.size());
     vector<VkPipelineShaderStageCreateInfo> shaderStages (shader_stages.size());
     for (int i = 0; i < shader_stages.size(); i++) {
         vector<char> shader_code = readFile (shader_stages[i].src);
         shader_modules[i] = createShaderModule (&shader_code);
+        assert(shader_modules[i] != VK_NULL_HANDLE);
+        
         shaderStages[i].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         shaderStages[i].stage = shader_stages[i].stage;
         shaderStages[i].module = shader_modules[i];
@@ -501,14 +514,19 @@ void Renderer::createRasterPipeline (RasterPipe* pipe, VkDescriptorSetLayout ext
 }
 
 void Renderer::destroyComputePipeline (ComputePipe* pipe) {
+    assert(pipe != NULL);
     vkDestroyPipeline (device, pipe->line, NULL);
     vkDestroyPipelineLayout (device, pipe->lineLayout, NULL);
     vkDestroyDescriptorSetLayout (device, pipe->setLayout, NULL);
 }
 
 void Renderer::createComputePipeline (ComputePipe* pipe, VkDescriptorSetLayout extra_dynamic_layout, const char* src, u32 push_size, VkPipelineCreateFlags create_flags) {
+    assert(pipe != NULL);
+    assert(src != NULL);
+    
     auto compShaderCode = readFile (src);
     VkShaderModule module = createShaderModule (&compShaderCode);
+    assert(module != VK_NULL_HANDLE);
     // VkSpecializationInfo specConstants = {};
     VkPipelineShaderStageCreateInfo
         compShaderStageInfo = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
@@ -544,12 +562,14 @@ void Renderer::createComputePipeline (ComputePipe* pipe, VkDescriptorSetLayout e
 
 void Renderer::createSurface() {
     VK_CHECK (glfwCreateWindowSurface (instance, window.pointer, NULL, &surface));
+    assert(surface != VK_NULL_HANDLE);
 }
 
 QueueFamilyIndices Renderer::findQueueFamilies (VkPhysicalDevice device) {
     QueueFamilyIndices indices;
     u32 queueFamilyCount = 0;
     vkGetPhysicalDeviceQueueFamilyProperties (device, &queueFamilyCount, NULL);
+    assert(queueFamilyCount > 0);
     std::vector<VkQueueFamilyProperties> queueFamilies (queueFamilyCount);
     vkGetPhysicalDeviceQueueFamilyProperties (device, &queueFamilyCount, queueFamilies.data());
     i32 i = 0;
@@ -567,6 +587,7 @@ QueueFamilyIndices Renderer::findQueueFamilies (VkPhysicalDevice device) {
         }
         i++;
     }
+    assert(indices.isComplete());
     return indices;
 }
 
@@ -640,6 +661,7 @@ bool Renderer::isPhysicalDeviceSuitable (VkPhysicalDevice device) {
 void Renderer::pickPhysicalDevice() {
     u32 deviceCount;
     VK_CHECK (vkEnumeratePhysicalDevices (instance, &deviceCount, NULL));
+    assert(deviceCount > 0);
     vector<VkPhysicalDevice> devices (deviceCount);
     VK_CHECK (vkEnumeratePhysicalDevices (instance, &deviceCount, devices.data()));
     physicalDevice = VK_NULL_HANDLE;
@@ -653,12 +675,16 @@ void Renderer::pickPhysicalDevice() {
         cout << KRED "no suitable physical device\n" KEND;
         exit (1);
     }
+    
+    assert(physicalDevice != VK_NULL_HANDLE);
     vkGetPhysicalDeviceProperties (physicalDevice, &physicalDeviceProperties);
     vkGetPhysicalDeviceFeatures (physicalDevice, &physicalDeviceFeatures);
 }
 
 void Renderer::createLogicalDevice() {
     QueueFamilyIndices indices = findQueueFamilies (physicalDevice);
+    assert(indices.graphicalAndCompute.has_value() && indices.present.has_value());
+
     vector<VkDeviceQueueCreateInfo> queueCreateInfos = {};
     std::set<u32> uniqueQueueFamilies = {indices.graphicalAndCompute.value(), indices.present.value()};
     float queuePriority = 1.0f; //random priority?
@@ -676,7 +702,6 @@ void Renderer::createLogicalDevice() {
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
         createInfo.queueCreateInfoCount = queueCreateInfos.size();
         createInfo.pQueueCreateInfos = queueCreateInfos.data();
-    // createInfo.pEnabledFeatures = &deviceFeatures;
         createInfo.enabledExtensionCount = deviceExtensions.size();
         createInfo.ppEnabledExtensionNames = deviceExtensions.data();
         createInfo.enabledLayerCount = instanceLayers.size();
@@ -685,11 +710,11 @@ void Renderer::createLogicalDevice() {
         createInfo.pNext = &settings.physical_features2;
     VK_CHECK (vkCreateDevice (physicalDevice, &createInfo, NULL, &device));
     vkGetDeviceQueue (device, indices.graphicalAndCompute.value(), 0, &graphicsQueue);
-    // vkGetDeviceQueue(device, indices.graphicalAndCompute.value(), 0, &computeQueue);
     vkGetDeviceQueue (device, indices.present.value(), 0, &presentQueue);
 }
 
 VkSurfaceFormatKHR Renderer::chooseSwapSurfaceFormat (vector<VkSurfaceFormatKHR> availableFormats) {
+    assert(!availableFormats.empty());
     for (auto format : availableFormats) {
         if (format.format == VK_FORMAT_B8G8R8A8_UNORM && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
             return format;
@@ -703,6 +728,8 @@ VkSurfaceFormatKHR Renderer::chooseSwapSurfaceFormat (vector<VkSurfaceFormatKHR>
 }
 
 VkPresentModeKHR Renderer::chooseSwapPresentMode (vector<VkPresentModeKHR> availablePresentModes) {
+    assert(!availablePresentModes.empty());
+    
     for (auto mode : availablePresentModes) {
         if (
             ((mode == VK_PRESENT_MODE_FIFO_KHR) && settings.vsync) ||
@@ -803,7 +830,7 @@ void Renderer::setupDebugMessenger() {
 
 void Renderer::getInstanceLayers() {
     uint32_t layerCount;
-    vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+    vkEnumerateInstanceLayerProperties(&layerCount, NULL);
     vector<VkLayerProperties> availableLayers(layerCount);
     vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
 

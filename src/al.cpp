@@ -47,6 +47,7 @@ void Renderer::init (Settings settings) {
     createSyncObjects();
 
     if(settings.profile){
+        assert(timestampCount > 0);
         timestampCount = settings.timestampCount; //TODO dynamic
         timestampNames.resize (timestampCount);
         timestamps.resize (timestampCount);
@@ -58,7 +59,8 @@ void Renderer::init (Settings settings) {
             query_pool_info.queryCount = timestampCount;
             queryPoolTimestamps.allocate (settings.fif);
         for (auto &q : queryPoolTimestamps) {
-            printl(q);
+            // printl(q);
+            assert(q != VK_NULL_HANDLE);
             VK_CHECK (vkCreateQueryPool (device, &query_pool_info, NULL, &q));
         }
     }
@@ -165,6 +167,7 @@ void Renderer::createSwapchain() {
     ring<VkImage> imgs (imageCount);
     vkGetSwapchainImagesKHR (device, swapchain, &imageCount, imgs.data());
     for (int i = 0; i < imageCount; i++) {
+        assert(imgs[i] != VK_NULL_HANDLE);
         swapchainImages[i].image = imgs[i];
     }
     swapChainImageFormat = surfaceFormat.format;
@@ -260,9 +263,7 @@ void Renderer::processDeletionQueues() {
 
 // #include <glm/gtx/string_cast.hpp>
 void Renderer::start_frame(vector<VkCommandBuffer> commandBuffers) {
-println
     vkWaitForFences (device, 1, &frameInFlightFences.current(), VK_TRUE, UINT32_MAX);
-println
     vkResetFences (device, 1, &frameInFlightFences.current());
 
     VkCommandBufferBeginInfo beginInfo = {};
@@ -270,6 +271,7 @@ println
         beginInfo.flags = 0;
         beginInfo.pInheritanceInfo = NULL;
     for (auto cb : commandBuffers){
+        assert(cb != VK_NULL_HANDLE);
         vkResetCommandBuffer(cb, 0);
         vkBeginCommandBuffer(cb, &beginInfo);
     }
@@ -284,18 +286,13 @@ println
         exit (result);
     }
 
-println
     if(settings.profile){
-println
-        // assert(mainCommandBuffers->current());
-// println
-        // assert(queryPoolTimestamps.current());
-    printl(queryPoolTimestamps.size());
-    printl(queryPoolTimestamps.current());
+        assert(mainCommandBuffers->current() != VK_NULL_HANDLE);
+        assert(queryPoolTimestamps.current() != VK_NULL_HANDLE);
+        printl(queryPoolTimestamps.size());
         vkCmdResetQueryPool ((*mainCommandBuffers).current(), queryPoolTimestamps.current(), 0, timestampCount);
         currentTimestamp = 0;
     }
-println
 }
 
 void Renderer::present() {
@@ -377,17 +374,12 @@ void Renderer::end_frame(vector<VkCommandBuffer> commandBuffers) {
     currentFrame = (currentFrame + 1) % settings.fif;
     iFrame++;
     
-println
     imageAvailableSemaphores.move(); //to sync presenting with renering  
-println
     renderFinishedSemaphores.move(); //to sync renering with presenting
-println
     frameInFlightFences.move();
-println
     if(settings.profile){
         queryPoolTimestamps.move();
     }
-println
 
     processDeletionQueues();
 }
@@ -842,8 +834,8 @@ println
 }
 void Renderer::cmdBindPipe(VkCommandBuffer commandBuffer, ComputePipe pipe){
     PLACE_TIMESTAMP(commandBuffer);
-    vkCmdBindPipeline (commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.line);
-    vkCmdBindDescriptorSets (commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.lineLayout, 0, 1, &pipe.sets.current(), 0, 0);
+    vkCmdBindPipeline (commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipe.line);
+    vkCmdBindDescriptorSets (commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipe.lineLayout, 0, 1, &pipe.sets.current(), 0, 0);
 }
 
 void Renderer::transitionImageLayoutSingletime (Image* image, VkImageLayout newLayout, int mipmaps) {

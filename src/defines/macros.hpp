@@ -1,5 +1,5 @@
 #pragma once
-
+//include after render|al.hpp only
 #include <iostream>
 #include "vk_enum_string_helper.h" //idk why but it is neither shipped with Linux Vulkan SDK nor bundled in vcpkg vulkan-sdk-components
 

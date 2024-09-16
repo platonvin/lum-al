@@ -273,6 +273,16 @@ struct VkSamplerCreateInfoEqual {
     }
 };
 
+
+ // conversion functions
+inline VkExtent2D extent2d(ivec2 ext) {return {u32(ext.x), u32(ext.y)};}
+inline VkExtent2D extent2d(uvec2 ext) {return {u32(ext.x), u32(ext.y)};}
+inline VkExtent2D extent2d(ivec3 ext) {return {u32(ext.x), u32(ext.y)};}
+inline VkExtent2D extent2d(uvec3 ext) {return {u32(ext.x), u32(ext.y)};}
+
+inline VkExtent3D extent3d(ivec3 ext) {return {u32(ext.x), u32(ext.y), u32(ext.z)};}
+inline VkExtent3D extent3d(uvec3 ext) {return {u32(ext.x), u32(ext.y), u32(ext.z)};}
+
 class DescriptorSetupBuilder;
 
 class Renderer {
@@ -531,8 +541,8 @@ public:
     //holds all the cpu-side VkSamplers 
     std::unordered_map<VkSamplerCreateInfo, VkSampler, VkSamplerCreateInfoHash, VkSamplerCreateInfoEqual> samplerMap;
 
-    vector<ImageDeletion> imageDeletionQueue; //cpu side  image abstractions deletion queue. Exists for delayed copies
-    vector<BufferDeletion> bufferDeletionQueue; //cpu side buffer abstractions deletion queue. Exists for delayed copies
+    vector<ImageDeletion> imageDeletionQueue = {}; //cpu side  image abstractions deletion queue. Exists for delayed copies
+    vector<BufferDeletion> bufferDeletionQueue = {}; //cpu side buffer abstractions deletion queue. Exists for delayed copies
 
     u32 currentFrame = 0;
     int iFrame = 0;
@@ -548,3 +558,40 @@ public:
 
     void* pNext; //to allow easy expansion
 };
+
+template<class Elem_T> ring<Buffer> Renderer::createElemBuffers (Elem_T* elements, u32 count, u32 buffer_usage) {
+    VkDeviceSize bufferSize = sizeof (Elem_T) * count;
+    ring<Buffer> elems (settings.fif);
+    VkBufferCreateInfo 
+        stagingBufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+        stagingBufferInfo.size = bufferSize;
+        stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    VmaAllocationCreateInfo 
+        stagingAllocInfo = {};
+        stagingAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+        stagingAllocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        stagingAllocInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    VkBuffer stagingBuffer = {};
+    VmaAllocation stagingAllocation = {};
+    vmaCreateBuffer (VMAllocator, &stagingBufferInfo, &stagingAllocInfo, &stagingBuffer, &stagingAllocation, NULL);
+    void* data;
+    assert (VMAllocator);
+    assert (stagingAllocation);
+    assert (&data);
+    vmaMapMemory (VMAllocator, stagingAllocation, &data);
+    memcpy (data, elements, bufferSize);
+    vmaUnmapMemory (VMAllocator, stagingAllocation);
+    for (i32 i = 0; i < settings.fif; i++) {
+        VkBufferCreateInfo 
+            bufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+            bufferInfo.size = bufferSize;
+            bufferInfo.usage = buffer_usage;
+        VmaAllocationCreateInfo 
+            allocInfo = {};
+            allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+        vmaCreateBuffer (VMAllocator, &bufferInfo, &allocInfo, &elems[i].buffer, &elems[i].alloc, NULL);
+        copyBufferSingleTime (stagingBuffer, elems[i].buffer, bufferSize);
+    }
+    vmaDestroyBuffer (VMAllocator, stagingBuffer, stagingAllocation);
+    return elems;
+}

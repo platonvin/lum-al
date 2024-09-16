@@ -5,12 +5,14 @@ array with built-in index_counter that increments on move() and wraps around siz
 */
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 
 template <typename _Type>
 class ring {
 public:
     ring(size_t initialSize) {
+        assert(initialSize > 0);
         buffer = new _Type[initialSize];
         size_ = initialSize;
         current_index = 0;
@@ -21,11 +23,8 @@ public:
         buffer = new _Type[size_];
         std::copy(other.buffer, other.buffer + size_, buffer);
     }
-    ring() {
-        buffer = NULL;
-        size_ = 0;
-        current_index = 0;
-    }
+    ring() : buffer(nullptr), size_(0), current_index(0) {}
+
     ring(std::initializer_list<_Type> initList)
         : buffer(new _Type[initList.size()]), size_(initList.size()), current_index(0) {
         std::copy(initList.begin(), initList.end(), buffer);
@@ -40,6 +39,7 @@ public:
     }
 
     void allocate(size_t size) {
+        assert(size > 0);
         if (buffer) {
             delete[] buffer;
         }
@@ -50,6 +50,7 @@ public:
 
     //basically for changing FIF count
     void realloc(size_t newSize) {
+        assert(newSize > 0);
         if (newSize == size_) return;
 
         _Type* newBuffer = new _Type[newSize];
@@ -80,7 +81,10 @@ public:
     }
 
     void reset() {current_index = 0;}
-    void move() {current_index = (current_index + 1) % size_;}
+    void move() {
+        assert(size_ > 0);
+        current_index = (current_index + 1) % size_;
+    }
 
     size_t size() {return size_;}
 
@@ -119,6 +123,7 @@ public:
         return *this;
     }
     _Type& operator[](size_t index) {
+        assert(index < size_);
         return buffer[index];
     }
 
