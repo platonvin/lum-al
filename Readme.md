@@ -1,27 +1,28 @@
-[![Build library](https://github.com/platonvin/lum-al/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/platonvin/lum-al/actions/workflows/c-cpp.yml)
 
 # Lum-al
-**Lum-al** is abstraction layer on top of Vulkan, originally designed as a part of [**Lum engine**](https://github.com/platonvin/lum), but extracted to be used in other projects
+**Lum-al** is abstraction layer on top of Vulkan i designed to simplify development of future projects
 
 this is very thin C++ Vulkan abstraction, built for usecase when objects (renderpasses, pipelines, framebuffers, descriptors) are mostly defined at initializon time
 
 to prevent your language server from parsing files it should not, define _LANG_SERVER (for example, with -D_LANG_SERVER argument) for it
 
-[examples/triangle.cpp](examples/triangle.cpp) contains simple example to draw triangle with 2 subpasses - main shading (writes to intermediate image) and posteffect (reads from intermediate image via supass input and then writes to swapchain)
+<big>[examples/triangle.cpp](examples/triangle.cpp)</big> contains simple example to draw triangle with 2 subpasses - main shading (writes to intermediate image) and posteffect (reads from intermediate image via supass input and then writes to swapchain)
 
-[Mangaka](https://github.com/platonvin/mangaka) contains more complicated example - lightmapping, depth prepass and cel shading (in manga style)
+<big>[Mangaka](https://github.com/platonvin/mangaka)</big> contains more complicated example - lightmapping, depth prepass and cel shading (in manga style)
 
+<big>[Lum](https://github.com/platonvin/lum)</big> is by far the most complicated project built with Lum-al. See repo for more info. Lum-al was originally designed for (_as part of_) Lum 
+ 
 ## Installation 
  
 - ### Prerequisites 
  
-  - **C++ Compiler** : [MSYS2 MinGW](https://www.msys2.org/)  recommended for Windows. For Linux, prefer GNU C++.
+  - **C++ Compiler** : [MSYS2 MinGW](https://www.msys2.org/) recommended for Windows. For Linux, prefer GNU C++.
  
   - **Vcpkg** : follow instructions at [Vcpkg](https://vcpkg.io/en/getting-started) .
  
   - **Make** : for Windows, install with MinGW64. For Linux, typically installed by default.
  
-  - **Vulkan SDK** : ensure that you have the [Vulkan SDK](https://vulkan.lunarg.com/) if you want debug features (**on** by default)
+  - **Vulkan SDK** : follow instructions at [Vulkan SDK](https://vulkan.lunarg.com/) to install if you want debug features
  
 - ### Steps 
 
@@ -32,20 +33,11 @@ to prevent your language server from parsing files it should not, define _LANG_S
  
   - Navigate to the project directory:
 `$ cd lum-al`
- 
-  - Install dependencies via Vcpkg:
-`$ vcpkg install` 
-    - On Linux, GLFW may ask you to install multiple packages. Install them in advance:
-`sudo apt install libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config build-essential`.
- 
-    - For MinGW on Windows specify MinGW as triplet:
-`$ vcpkg install --triplet=x64-mingw-static --host-triplet=x64-mingw-static`.
- 
   - Build library:
 `$ make library -j4`
-     - Built library is placed into /lib. Use -llumal to link with it (do not forget to -Llum-al/lib)
+    - On Linux, GLFW may ask you to install multiple packages. Install them in advance:
+`sudo apt install libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config build-essential`.
+     - Built library is placed into /lib. Use `-llumal` to link with it (do not forget to `-Llum-al/lib`)
  - use `make example` to build and run example-triangle.
 
 see [src/al.hpp](src/al.hpp) for more info
-
-Some Vulkan function are wrapped with Renderer:: ones, but only when it simplifies usage
