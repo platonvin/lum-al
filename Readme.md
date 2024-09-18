@@ -1,3 +1,4 @@
+[![Build library](https://github.com/platonvin/lum-al/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/platonvin/lum-al/actions/workflows/c-cpp.yml)
 
 # Lum-al
 **Lum-al** is abstraction layer on top of Vulkan, originally designed as a part of [**Lum engine**](https://github.com/platonvin/lum), but extracted to be used in other projects
