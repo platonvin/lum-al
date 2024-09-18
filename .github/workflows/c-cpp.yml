@@ -1,0 +1,40 @@
+name: Build library
+
+on: 
+  workflow_dispatch:
+
+env:  
+    VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');      
+      
+      - name: Maybe useful update
+        run: sudo apt update
+        
+      - name: Cache APT Packages
+        uses: awalsh128/cache-apt-pkgs-action@v1.4.2
+        with:
+          packages: libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config build-essential
+          execute_install_scripts: true  # optional, set to true if you need to run install scripts
+      
+      - name: Checkout code
+        uses: actions/checkout@v4
+          
+      - name: Clone vcpkg
+        run: git clone https://github.com/microsoft/vcpkg.git
+      - name: Bootstrap vcpkg
+        run: ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
+      - name: Install dependencies
+        run: ./vcpkg/vcpkg install
+        
+      - name: Build the project
+        run: make library -j4
