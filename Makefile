@@ -91,6 +91,9 @@ vcpkg_installed_eval: vcpkg_installed
 #spirv things are installed with vcpkg and not set in envieroment, so i find needed tools myself
 	$(eval GLSLC_DIR := $(firstword $(foreach dir, $(OTHER_DIRS), $(wildcard $(dir)/tools/shaderc))) )
 	$(eval GLSLC := $(strip $(GLSLC_DIR))/glslc )
+ifeq ($(OS),Windows_NT)
+	$(eval GLSLC := $(subst /,\,$(GLSLC)) )
+endif
 
 vcpkg_installed:
 	echo installind vcpkg dependencies. Please do not interrupt
