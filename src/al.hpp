@@ -482,6 +482,8 @@ public:
     void generateMipmaps (VkCommandBuffer commandBuffer, VkImage image, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, VkImageAspectFlags aspect);
     void createBufferStorages (ring<Buffer>* buffers, VkBufferUsageFlags usage, u32 size, bool host = false);
     void createBufferStorages (Buffer* buffer, VkBufferUsageFlags usage, u32 size, bool host = false);
+    void mapBufferStorages (ring<Buffer> buffers);
+    void mapBufferStorages (Buffer* buffer);
     VkShaderModule createShaderModule (vector<char>* code);
     void createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>*> imgs4views, VkRenderPass renderPass, u32 Width, u32 Height);
     void createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>*> imgs4views, VkRenderPass renderPass, VkExtent2D extent);
@@ -490,7 +492,7 @@ public:
     void createSyncObjects();
 
     void createImageFromMemorySingleTime(Image* image, const void* source, u32 size);
-    void createBuffer (VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer* buffer, VkDeviceMemory* bufferMemory);
+    // void createBuffer (VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer* buffer, VkDeviceMemory* bufferMemory);
     void copyBufferSingleTime (VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
     void copyBufferSingleTime (VkBuffer srcBuffer, Image* image, uvec3 size);
     VkCommandBuffer beginSingleTimeCommands();
