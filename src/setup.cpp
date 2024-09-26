@@ -1022,8 +1022,8 @@ void Renderer::createBufferStorages (Buffer* buffer, VkBufferUsageFlags usage, u
     allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
     VK_CHECK (vmaCreateBuffer (VMAllocator, &bufferInfo, &allocInfo, & (*buffer).buffer, & (*buffer).alloc, NULL));
 }
-void Renderer::mapBufferStorages(ring<Buffer> buffers){
-    for(Buffer& b : buffers){
+void Renderer::mapBufferStorages(ring<Buffer>* buffers){
+    for(Buffer& b : *buffers){
         mapBufferStorages(&b);
     }
 }

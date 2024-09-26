@@ -38,8 +38,7 @@ using glm::dmat2, glm::dmat3, glm::dmat4;
 typedef struct Buffer {
     VkBuffer buffer;
     VmaAllocation alloc;
-    void* mapped;
-    bool is_mapped = false;
+    void* mapped = NULL;
 } Buffer;
 
 typedef struct Image {
@@ -283,8 +282,6 @@ inline VkExtent2D extent2d(uvec3 ext) {return {u32(ext.x), u32(ext.y)};}
 inline VkExtent3D extent3d(ivec3 ext) {return {u32(ext.x), u32(ext.y), u32(ext.z)};}
 inline VkExtent3D extent3d(uvec3 ext) {return {u32(ext.x), u32(ext.y), u32(ext.z)};}
 
-class DescriptorSetupBuilder;
-
 class Renderer {
 public:
     //syntactic sugar is bitter
@@ -482,7 +479,7 @@ public:
     void generateMipmaps (VkCommandBuffer commandBuffer, VkImage image, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, VkImageAspectFlags aspect);
     void createBufferStorages (ring<Buffer>* buffers, VkBufferUsageFlags usage, u32 size, bool host = false);
     void createBufferStorages (Buffer* buffer, VkBufferUsageFlags usage, u32 size, bool host = false);
-    void mapBufferStorages (ring<Buffer> buffers);
+    void mapBufferStorages (ring<Buffer>* buffers);
     void mapBufferStorages (Buffer* buffer);
     VkShaderModule createShaderModule (vector<char>* code);
     void createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>*> imgs4views, VkRenderPass renderPass, u32 Width, u32 Height);

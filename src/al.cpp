@@ -79,14 +79,14 @@ void Renderer::deleteImages (Image* image) {
 
 void Renderer::deleteBuffers (ring<Buffer>* buffers) {
     for (int i = 0; i < settings.fif; i++) {
-        if((*buffers)[i].is_mapped){
+        if((*buffers)[i].mapped != NULL){
             vmaUnmapMemory (VMAllocator, (*buffers)[i].alloc);
         }
         vmaDestroyBuffer (VMAllocator, (*buffers)[i].buffer, (*buffers)[i].alloc);
     }
 }
 void Renderer::deleteBuffers (Buffer* buffer) {
-    if((*buffer).is_mapped){
+    if((*buffer).mapped != NULL){
         vmaUnmapMemory (VMAllocator, (*buffer).alloc);
     }
     vmaDestroyBuffer (VMAllocator, (*buffer).buffer, (*buffer).alloc);
