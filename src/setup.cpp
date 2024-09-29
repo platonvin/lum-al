@@ -1097,6 +1097,9 @@ static void allocate_Descriptor (ring<VkDescriptorSet>& sets, VkDescriptorSetLay
     VK_CHECK (vkAllocateDescriptorSets (device, &allocInfo, sets.data()));
 }
 
+void Renderer::resetDescriptorSetup () {
+    delayed_descriptor_setups.clear();
+}
 void Renderer::deferDescriptorSetup (VkDescriptorSetLayout* dsetLayout, ring<VkDescriptorSet>* descriptorSets, vector<DescriptorInfo> descriptions, VkShaderStageFlags baseStages, VkDescriptorSetLayoutCreateFlags createFlags) {
     if (*dsetLayout == VK_NULL_HANDLE) {
         vector<ShortDescriptorInfo> descriptorInfos (descriptions.size());
@@ -1144,8 +1147,9 @@ void Renderer::setupDescriptor (VkDescriptorSetLayout* dsetLayout, ring<VkDescri
                     continue;
                 }
             }
-            if (!descriptions[i].images.empty()) {
-                image_infos[i].imageView = descriptions[i].images[descriptor_frame_id].view;
+            if (descriptions[i].images != NULL) {
+                assert((*descriptions[i].images)[descriptor_frame_id].view != VK_NULL_HANDLE);
+                image_infos[i].imageView = (*descriptions[i].images)[descriptor_frame_id].view;
                 image_infos[i].imageLayout = descriptions[i].imageLayout;
                 if (descriptions[i].imageSampler != NULL) {
                     image_infos[i].sampler = descriptions[i].imageSampler;
@@ -1154,9 +1158,9 @@ void Renderer::setupDescriptor (VkDescriptorSetLayout* dsetLayout, ring<VkDescri
                     }
                 }
                 writes[i].pImageInfo = &image_infos[i];
-                assert (descriptions[i].buffers.empty());
-            } else if (!descriptions[i].buffers.empty()) {
-                buffer_infos[i].buffer = descriptions[i].buffers[descriptor_frame_id].buffer;
+                assert (descriptions[i].buffers == NULL);
+            } else if (descriptions[i].buffers != NULL) {
+                buffer_infos[i].buffer = (*descriptions[i].buffers)[descriptor_frame_id].buffer;
                 buffer_infos[i].offset = 0;
                 buffer_infos[i].range = VK_WHOLE_SIZE;
                 writes[i].pBufferInfo = &buffer_infos[i];

@@ -160,8 +160,8 @@ typedef struct ShaderStage {
 typedef struct DescriptorInfo {
     VkDescriptorType type;
     RelativeDescriptorPos relativePos;
-    ring<Buffer> buffers;
-    ring<Image> images;
+    ring<Buffer>* buffers = nullptr;
+    ring<Image>* images = nullptr;
     VkSampler imageSampler;
     VkImageLayout imageLayout; //ones that will be in use, not current
     VkShaderStageFlags stages;
@@ -353,6 +353,12 @@ public:
     VkAttachmentLoadOp  getOpLoad (LoadStoreOp op);
     VkAttachmentStoreOp getOpStore(LoadStoreOp op);
 
+    //used on windows resize for example
+    //should be provided
+    std::function<VkResult()> cleanupSwapchainDependent;
+    std::function<VkResult()> createSwapchainDependent;
+    void recreateSwapchain();
+    
     void deviceWaitIdle();
     void createRenderPass(vector<AttachmentDescription> attachments, vector<SubpassAttachments> subpasses, RenderPass* rpass);
     void destroyRenderPass(RenderPass* rpass);
@@ -369,6 +375,7 @@ public:
     void destroyComputePipeline (ComputePipe* pipe);
 
     void createDescriptorPool();
+    void resetDescriptorSetup ();
     void deferDescriptorSetup (VkDescriptorSetLayout* dsetLayout, ring<VkDescriptorSet>* descriptors, vector<DescriptorInfo> description, VkShaderStageFlags stages, VkDescriptorSetLayoutCreateFlags createFlags = 0);
     void setupDescriptor (VkDescriptorSetLayout* dsetLayout, ring<VkDescriptorSet>* descriptors, vector<DescriptorInfo> description, VkShaderStageFlags stages);
     void flushDescriptorSetup();

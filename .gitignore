@@ -1,7 +1,10 @@
+# lsp thing
 compile_flags.txt
 vcpkg_installed
-*exe
+*.exe
 todo.txt
 rules.txt
 obj
 lib
+# precompiled headers
+*.gch

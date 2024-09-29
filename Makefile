@@ -4,6 +4,8 @@
 I = -Isrc
 L = 
 
+CPP_COMPILER = clang++
+
 lib_objs := \
 	obj/al.o\
 	obj/setup.o\
@@ -15,7 +17,8 @@ else
 	REQUIRED_LIBS = -lglfw3 -lpthread -ldl -lvolk
 endif
 	
-always_enabled_flags = -fno-exceptions -Wuninitialized -std=c++20 -Wno-inconsistent-missing-destructor-override
+always_enabled_flags = -fno-exceptions -Wuninitialized -std=c++20 -Wno-inconsistent-missing-destructor-override -Wno-nullability-completeness
+library_opt_flags = -Os
 
 srcs := \
 	examples/triangle.cpp\
@@ -25,20 +28,20 @@ srcs := \
 #default target
 profile = -D_PRINTLINE -DVKNDEBUG
 profile = 
-all: init example
-
-obj/triangle.o: examples/triangle.cpp init vcpkg_installed_eval
-	c++ $(special_otp_flags) $(always_enabled_flags) $(I) $(args) $(profile) -MMD -MP -c $< -o $@ 
-DEPS = $(obj/triangle.d)
--include $(DEPS)
+all: init triangle
 
 obj/%.o: src/%.cpp init vcpkg_installed_eval
-	c++ $(special_otp_flags) $(always_enabled_flags) $(I) $(args) $(profile) -MMD -MP -c $< -o $@
+	$(CPP_COMPILER) $(library_opt_flags) $(always_enabled_flags) $(I) $(args) $(profile) -MMD -MP -c $< -o $@
 DEPS = $(lib_objs:.o=.d)
 -include $(DEPS)
 
+obj/triangle.o: examples/triangle.cpp init vcpkg_installed_eval
+	$(CPP_COMPILER) $(always_enabled_flags) $(I) $(args) $(profile) -MMD -MP -c $< -o $@ 
+DEPS = $(obj/triangle.d)
+-include $(DEPS)
 
-example: init vcpkg_installed_eval library build_example shaders
+
+triangle: init vcpkg_installed_eval lib/liblumal.a build_example shaders
 ifeq ($(OS),Windows_NT)
 	.\triangle
 else
@@ -50,11 +53,13 @@ shaders: examples/triag.vert examples/triag.frag examples/posteffect.frag init v
 	$(GLSLC) -o examples/frag.spv examples/triag.frag
 	$(GLSLC) -o examples/posteffect.spv examples/posteffect.frag
 
-# c++ $(lib_objs) $(I) $(L) $(REQUIRED_LIBS) $(STATIC_OR_DYNAMIC) -c -o lumal 
-library: init vcpkg_installed_eval $(lib_objs)
+# $(CPP_COMPILER) $(lib_objs) $(I) $(L) $(REQUIRED_LIBS) $(STATIC_OR_DYNAMIC) -c -o lumal 
+lib/liblumal.a: init vcpkg_installed_eval $(lib_objs)
 	ar rvs lib/liblumal.a $(lib_objs)
 
-build_example: library obj/triangle.o
+library: lib/liblumal.a
+
+build_example: lib/liblumal.a obj/triangle.o
 	c++ -o triangle obj/triangle.o -llumal -Llib $(flags) $(I) $(L) $(REQUIRED_LIBS) $(STATIC_OR_DYNAMIC)
 
 init: obj lib

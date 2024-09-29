@@ -174,6 +174,41 @@ void Renderer::createSwapchain() {
     swapChainExtent = extent;
 }
 
+void Renderer::recreateSwapchain(){
+    int width = 0, height = 0;
+println
+    glfwGetFramebufferSize(window.pointer, &width, &height);
+    while (width == 0 || height == 0) {
+        glfwGetFramebufferSize(window.pointer, &width, &height);
+        glfwWaitEvents();
+    }
+
+println
+    deviceWaitIdle();
+    
+    if(cleanupSwapchainDependent) cleanupSwapchainDependent();
+    vkDestroyCommandPool(device, commandPool, NULL);
+    vkDestroyDescriptorPool(device, descriptorPool, NULL);
+    resetDescriptorSetup();
+    deviceWaitIdle();
+
+println
+    for (auto img : swapchainImages) {
+        vkDestroyImageView (device, img.view, NULL);
+    }
+    vkDestroySwapchainKHR (device, swapchain, NULL);
+    // vkDestroyCommandPool(device, commandPool, NULL);    
+println
+    createSwapchain();
+    createSwapchainImageViews();
+    createCommandPool();
+    // called in flushDescriptors
+    // createDescriptorPool();
+println
+
+    if(createSwapchainDependent) createSwapchainDependent();
+}
+
 void Renderer::createSwapchainImageViews() {
     for (i32 i = 0; i < swapchainImages.size(); i++) {
         VkImageViewCreateInfo createInfo = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
@@ -278,7 +313,9 @@ void Renderer::start_frame(vector<VkCommandBuffer> commandBuffers) {
 
     VkResult result = vkAcquireNextImageKHR (device, swapchain, UINT64_MAX, imageAvailableSemaphores.current(), VK_NULL_HANDLE, &imageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        // recreate_SwapchainDependent();
+        // if(cleanupSwapchainDependent) cleanupSwapchainDependent();
+        // if(createSwapchainDependent) createSwapchainDependent();
+        // recreateSwapchain();
         resized = true;
         // return; // can be avoided, but it is just 1 frame
     } else if ((result != VK_SUCCESS)) {
@@ -309,10 +346,12 @@ void Renderer::present() {
         presentInfo.pImageIndices = &imageIndex;
         presentInfo.pResults = NULL;
     VkResult result = vkQueuePresentKHR (presentQueue, &presentInfo);
+
+    //why here? To simplify things
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || resized) {
         resized = false;
         // cout << KRED"failed to present swap chain image!\n" KEND;
-        // recreateSwapchainDependent(); TODO
+        recreateSwapchain();
     } else if (result != VK_SUCCESS) {
         cout << KRED"failed to present swap chain image!\n" KEND;
         exit (result);
