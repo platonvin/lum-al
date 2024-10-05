@@ -947,6 +947,7 @@ void Renderer::createImageStorages (Image* image,
     image->aspect = aspect;
     image->format = format;
     image->extent = extent;
+    image->mip_levels = mipmaps;
     VkImageCreateInfo 
         imageInfo = {};
         imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -984,7 +985,34 @@ void Renderer::createImageStorages (Image* image,
         viewInfo.subresourceRange.levelCount = mipmaps;
         viewInfo.subresourceRange.layerCount = 1;
     VK_CHECK (vkCreateImageView (device, &viewInfo, NULL, &image->view));
-    transitionImageLayoutSingletime(image, VK_IMAGE_LAYOUT_GENERAL, 1);
+
+    //"just" view and mip_views[0] are not the same - level count is mipmaps VS 1
+    if(mipmaps > 1){
+        image->mip_views.resize(mipmaps);
+        for(int mip=0; mip<mipmaps; mip++){
+            VkImageViewCreateInfo 
+                viewInfo = {};
+                viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+                viewInfo.image = image->image;
+            if (type == VK_IMAGE_TYPE_2D) {
+                viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            } else if (type == VK_IMAGE_TYPE_3D) {
+                viewInfo.viewType = VK_IMAGE_VIEW_TYPE_3D;
+            }
+            viewInfo.format = format;
+            if ((aspect & VK_IMAGE_ASPECT_DEPTH_BIT) and (aspect & VK_IMAGE_ASPECT_STENCIL_BIT)) {
+                viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT; //create stencil view yourself
+            } else {
+                viewInfo.subresourceRange.aspectMask = aspect;
+            }
+                viewInfo.subresourceRange.baseMipLevel = mip;
+                viewInfo.subresourceRange.baseArrayLayer = 0;
+                viewInfo.subresourceRange.levelCount = 1;
+                viewInfo.subresourceRange.layerCount = 1;
+            VK_CHECK (vkCreateImageView (device, &viewInfo, NULL, &image->mip_views[mip]));
+        }
+    }
+    transitionImageLayoutSingletime(image, VK_IMAGE_LAYOUT_GENERAL, mipmaps);
 }
 
 //fill manually with cmd or copy

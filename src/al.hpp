@@ -43,7 +43,8 @@ typedef struct Buffer {
 
 typedef struct Image {
     VkImage image;
-    VkImageView view;
+    VkImageView view; // main view
+    vector<VkImageView> mip_views;
     VmaAllocation alloc;
     VkFormat format;
     // VkImageLayout layout; everything is in GENERAL.
@@ -308,6 +309,7 @@ public:
         vkCmdBindDescriptorSets(commandBuffer, pipelineBindPoint, layout, firstSet, descriptorSetCount, pDescriptorSets, dynamicOffsetCount, pDynamicOffsets);
     }
     void cmdDraw(VkCommandBuffer commandBuffer, u32 vertexCount, u32 instanceCount, u32 firstVertex, u32 firstInstance);
+    void cmdDispatch(VkCommandBuffer commandBuffer, u32 groupCountX, u32 groupCountY, u32 groupCountZ);
     void cmdBeginRenderPass (VkCommandBuffer commandBuffer, RenderPass* rpass);
     void cmdNextSubpass (VkCommandBuffer commandBuffer, RenderPass* rpass);
     void cmdEndRenderPass (VkCommandBuffer commandBuffer, RenderPass* rpass);

@@ -840,7 +840,9 @@ void Renderer::cmdSetViewport(VkCommandBuffer commandBuffer, VkExtent2D extent){
 void Renderer::cmdDraw(VkCommandBuffer commandBuffer, u32 vertexCount, u32 instanceCount, u32 firstVertex, u32 firstInstance){
     vkCmdDraw(commandBuffer, vertexCount, instanceCount, firstVertex, firstInstance);
 }
-
+void Renderer::cmdDispatch(VkCommandBuffer commandBuffer, u32 groupCountX, u32 groupCountY, u32 groupCountZ){
+    vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);
+}
 void Renderer::cmdBeginRenderPass(VkCommandBuffer commandBuffer, RenderPass* rpass){
     VkRenderPassBeginInfo 
         renderPassInfo = {};
