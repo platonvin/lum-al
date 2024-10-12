@@ -356,8 +356,12 @@ void Renderer::createRasterPipeline (RasterPipe* pipe, VkDescriptorSetLayout ext
         scissor.extent = extent;
     vector<VkDynamicState> dynamicStates = {
         VK_DYNAMIC_STATE_VIEWPORT,
-        VK_DYNAMIC_STATE_SCISSOR
+        VK_DYNAMIC_STATE_SCISSOR,
     };
+    if(topology == VK_PRIMITIVE_TOPOLOGY_LINE_STRIP || topology==VK_PRIMITIVE_TOPOLOGY_LINE_LIST){
+        dynamicStates.push_back(VK_DYNAMIC_STATE_LINE_WIDTH);
+    }
+    
     VkPipelineDynamicStateCreateInfo
         dynamicState = {VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
         dynamicState.dynamicStateCount = dynamicStates.size();
@@ -969,6 +973,10 @@ void Renderer::createImageStorages (Image* image,
         viewInfo = {};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         viewInfo.image = image->image;
+    
+    // lol works without 1d specification
+    if (type == VK_IMAGE_TYPE_1D) {
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_1D;
     if (type == VK_IMAGE_TYPE_2D) {
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     } else if (type == VK_IMAGE_TYPE_3D) {

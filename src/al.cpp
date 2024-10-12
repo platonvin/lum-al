@@ -67,22 +67,23 @@ void Renderer::init (Settings settings) {
 }
 
 void Renderer::deleteImages (ring<Image>* images) {
-    for (int i = 0; i < settings.fif; i++) {
-        vkDestroyImageView (device, (*images)[i].view, NULL);
-        vmaDestroyImage (VMAllocator, (*images)[i].image, (*images)[i].alloc);
+    for (auto& img : (*images)) {
+        deleteImages(&img);
     }
 }
 void Renderer::deleteImages (Image* image) {
+    // "just" .view and .mip_views[0] are not the same
+    // from 0 to .size() is important
+    for(int i=0; i < (*image).mip_views.size(); i++){
+        vkDestroyImageView (device, (*image).mip_views[i], NULL);
+    }
     vkDestroyImageView (device, (*image).view, NULL);
     vmaDestroyImage (VMAllocator, (*image).image, (*image).alloc);
 }
 
 void Renderer::deleteBuffers (ring<Buffer>* buffers) {
-    for (int i = 0; i < settings.fif; i++) {
-        if((*buffers)[i].mapped != NULL){
-            vmaUnmapMemory (VMAllocator, (*buffers)[i].alloc);
-        }
-        vmaDestroyBuffer (VMAllocator, (*buffers)[i].buffer, (*buffers)[i].alloc);
+    for (auto& buf : (*buffers)) {
+        deleteBuffers(&buf);
     }
 }
 void Renderer::deleteBuffers (Buffer* buffer) {
