@@ -977,7 +977,8 @@ void Renderer::createImageStorages (Image* image,
     // lol works without 1d specification
     if (type == VK_IMAGE_TYPE_1D) {
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_1D;
-    if (type == VK_IMAGE_TYPE_2D) {
+    }
+    else if (type == VK_IMAGE_TYPE_2D) {
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     } else if (type == VK_IMAGE_TYPE_3D) {
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_3D;
