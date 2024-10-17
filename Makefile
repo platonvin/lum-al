@@ -4,7 +4,7 @@
 I = -Isrc
 L = 
 
-CPP_COMPILER = clang++
+CPP_COMPILER = c++
 
 lib_objs := \
 	obj/al.o\
