@@ -51,13 +51,20 @@
 #define PLACE_TIMESTAMP(commandBuffer) do {\
     if(settings.profile){\
         timestampNames[currentTimestamp] = __func__;\
-        vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPoolTimestamps[currentFrame], currentTimestamp++);\
+        vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPoolTimestamps.current(), currentTimestamp++);\
     }\
 } while(0)
 
-#define PLACE_TIMESTAMP_ALWAYS() do {\
+#define PLACE_TIMESTAMP_OUTSIDE(commandBuffer) do {\
+    if(render.settings.profile){\
+        render.timestampNames[render.currentTimestamp] = __func__;\
+        vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, render.queryPoolTimestamps.current(), render.currentTimestamp++);\
+    }\
+} while(0)
+
+#define PLACE_TIMESTAMP_ALWAYS(commandBuffer) do {\
     timestampNames[currentTimestamp] = __func__;\
-    vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPoolTimestamps[currentFrame], currentTimestamp++);\
+    vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPoolTimestamps.current(), currentTimestamp++);\
 } while(0)
 
 // #define SET_ALLOC_NAMES

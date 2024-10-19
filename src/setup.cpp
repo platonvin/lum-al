@@ -146,6 +146,7 @@ void Renderer::destroyRenderPass(RenderPass* rpass){
         vkDestroyFramebuffer (device, framebuffer, NULL);
     }
     vkDestroyRenderPass(device, rpass->rpass, NULL);
+    *rpass = {};
 }
 void Renderer::deviceWaitIdle(){
     vkDeviceWaitIdle(device);
@@ -288,6 +289,7 @@ void Renderer::destroyRasterPipeline (RasterPipe* pipe) {
     vkDestroyPipeline (device, pipe->line, NULL);
     vkDestroyPipelineLayout (device, pipe->lineLayout, NULL);
     vkDestroyDescriptorSetLayout (device, pipe->setLayout, NULL);
+    *pipe = {};
 }
 
 static bool stencil_is_empty (VkStencilOpState stencil) {
@@ -522,6 +524,7 @@ void Renderer::destroyComputePipeline (ComputePipe* pipe) {
     vkDestroyPipeline (device, pipe->line, NULL);
     vkDestroyPipelineLayout (device, pipe->lineLayout, NULL);
     vkDestroyDescriptorSetLayout (device, pipe->setLayout, NULL);
+    *pipe = {};
 }
 
 void Renderer::createComputePipeline (ComputePipe* pipe, VkDescriptorSetLayout extra_dynamic_layout, const char* src, u32 push_size, VkPipelineCreateFlags create_flags) {

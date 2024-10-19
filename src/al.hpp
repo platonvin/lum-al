@@ -6,9 +6,11 @@
 #include <unordered_map>
 #include <functional>
 #define GLM_ENABLE_EXPERIMENTAL
-#include <glm/glm.hpp>
-#include <glm/gtx/quaternion.hpp>
-#include <glm/ext/matrix_transform.hpp>
+// #include <glm/glm.hpp>
+// #include <glm/gtx/quaternion.hpp>
+// #include <glm/ext/matrix_transform.hpp>
+#include <glm/ext/vector_bool1.hpp>
+#include "glm/gtc/type_precision.hpp"
 
 #include <volk.h>
 #include <vk_mem_alloc.h>
@@ -357,8 +359,11 @@ public:
 
     //used on windows resize for example
     //should be provided
-    std::function<VkResult()> cleanupSwapchainDependent;
-    std::function<VkResult()> createSwapchainDependent;
+    // using sd_fun = VkResult (*)(void);
+    // sd_fun cleanupSwapchainDependent = NULL;
+    // sd_fun createSwapchainDependent = NULL;
+    std::function<VkResult()> cleanupSwapchainDependent = NULL;
+    std::function<VkResult()> createSwapchainDependent = NULL;
     void recreateSwapchain();
     
     void deviceWaitIdle();
@@ -475,10 +480,10 @@ public:
     PipeBuilder pipeBuilder;
     RenderPassBuilder renderPassBuilder;
 
-    void deleteImages (ring<Image>* images);
-    void deleteImages (Image* images);
-    void deleteBuffers (ring<Buffer>* buffers);
-    void deleteBuffers (Buffer* buffers);
+    void destroyImages (ring<Image>* images);
+    void destroyImages (Image* images);
+    void destroyBuffers (ring<Buffer>* buffers);
+    void destroyBuffers (Buffer* buffers);
     void createImageStorages (ring<Image>* images,
                                 VkImageType type, VkFormat format, VkImageUsageFlags usage, VmaMemoryUsage vma_usage, VmaAllocationCreateFlags vma_flags, VkImageAspectFlags aspect,
                                 VkExtent3D size, int mipmaps = 1, VkSampleCountFlagBits sample_count = VK_SAMPLE_COUNT_1_BIT);
@@ -559,10 +564,10 @@ public:
     ring<VkQueryPool> queryPoolTimestamps;
     int currentTimestamp = 0;
     int timestampCount = 0;
-    vector<uint64_t>        timestamps = {};
-    vector<double>         ftimestamps = {};
-    vector<double> average_ftimestamps = {};
-    vector<const char*> timestampNames = {};
+    vector<uint64_t>        timestamps = {0};
+    vector<double>         ftimestamps = {0};
+    vector<double> average_ftimestamps = {0};
+    vector<const char*> timestampNames = {0};
 
     void* pNext; //to allow easy expansion
 };

@@ -24,10 +24,9 @@ using glm::dmat2, glm::dmat3, glm::dmat4;
 
 tuple<int, int> get_block_xy (int N);
 
-ring<char> readFile (const char* filename);
-
 void Renderer::init (Settings settings) {
     this->settings = settings;
+    timestampCount = settings.timestampCount;
 
     createWindow();
     VK_CHECK (volkInitialize());
@@ -59,19 +58,19 @@ void Renderer::init (Settings settings) {
             query_pool_info.queryCount = timestampCount;
             queryPoolTimestamps.allocate (settings.fif);
         for (auto &q : queryPoolTimestamps) {
-            // printl(q);
-            assert(q != VK_NULL_HANDLE);
             VK_CHECK (vkCreateQueryPool (device, &query_pool_info, NULL, &q));
+            assert(q != VK_NULL_HANDLE);
         }
     }
 }
 
-void Renderer::deleteImages (ring<Image>* images) {
+void Renderer::destroyImages (ring<Image>* images) {
     for (auto& img : (*images)) {
-        deleteImages(&img);
+        destroyImages(&img);
     }
+    *images = {};
 }
-void Renderer::deleteImages (Image* image) {
+void Renderer::destroyImages (Image* image) {
     // "just" .view and .mip_views[0] are not the same
     // from 0 to .size() is important
     for(int i=0; i < (*image).mip_views.size(); i++){
@@ -79,18 +78,21 @@ void Renderer::deleteImages (Image* image) {
     }
     vkDestroyImageView (device, (*image).view, NULL);
     vmaDestroyImage (VMAllocator, (*image).image, (*image).alloc);
+    *image = {};
 }
 
-void Renderer::deleteBuffers (ring<Buffer>* buffers) {
+void Renderer::destroyBuffers (ring<Buffer>* buffers) {
     for (auto& buf : (*buffers)) {
-        deleteBuffers(&buf);
+        destroyBuffers(&buf);
     }
+    *buffers = {};
 }
-void Renderer::deleteBuffers (Buffer* buffer) {
+void Renderer::destroyBuffers (Buffer* buffer) {
     if((*buffer).mapped != NULL){
         vmaUnmapMemory (VMAllocator, (*buffer).alloc);
     }
     vmaDestroyBuffer (VMAllocator, (*buffer).buffer, (*buffer).alloc);
+    *buffer = {};
 }
 
 void Renderer::cleanup() {
@@ -299,23 +301,26 @@ void Renderer::processDeletionQueues() {
 
 // #include <glm/gtx/string_cast.hpp>
 void Renderer::start_frame(vector<VkCommandBuffer> commandBuffers) {
+    println
     vkWaitForFences (device, 1, &frameInFlightFences.current(), VK_TRUE, UINT32_MAX);
+    println
     vkResetFences (device, 1, &frameInFlightFences.current());
 
     VkCommandBufferBeginInfo beginInfo = {};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags = 0;
         beginInfo.pInheritanceInfo = NULL;
+    println
     for (auto cb : commandBuffers){
         assert(cb != VK_NULL_HANDLE);
         vkResetCommandBuffer(cb, 0);
+    println
         vkBeginCommandBuffer(cb, &beginInfo);
     }
+    println
 
     VkResult result = vkAcquireNextImageKHR (device, swapchain, UINT64_MAX, imageAvailableSemaphores.current(), VK_NULL_HANDLE, &imageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        // if(cleanupSwapchainDependent) cleanupSwapchainDependent();
-        // if(createSwapchainDependent) createSwapchainDependent();
         // recreateSwapchain();
         resized = true;
         // return; // can be avoided, but it is just 1 frame
@@ -323,12 +328,17 @@ void Renderer::start_frame(vector<VkCommandBuffer> commandBuffers) {
         printf (KRED "failed to acquire swap chain image!\n" KEND);
         exit (result);
     }
+    println
 
     if(settings.profile){
         assert(mainCommandBuffers->current() != VK_NULL_HANDLE);
         assert(queryPoolTimestamps.current() != VK_NULL_HANDLE);
-        printl(queryPoolTimestamps.size());
+        // if(iFrame<10){
+        //     for(auto& q: queryPoolTimestamps)
+        //         vkCmdResetQueryPool ((*mainCommandBuffers).current(), q, 0, timestampCount);
+        // } else 
         vkCmdResetQueryPool ((*mainCommandBuffers).current(), queryPoolTimestamps.current(), 0, timestampCount);
+
         currentTimestamp = 0;
     }
 }
@@ -351,8 +361,8 @@ void Renderer::present() {
     //why here? To simplify things
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || resized) {
         resized = false;
-        // cout << KRED"failed to present swap chain image!\n" KEND;
         recreateSwapchain();
+        // cout << KRED"failed to present swap chain image!\n" KEND;
     } else if (result != VK_SUCCESS) {
         cout << KRED"failed to present swap chain image!\n" KEND;
         exit (result);
@@ -384,7 +394,7 @@ void Renderer::end_frame(vector<VkCommandBuffer> commandBuffers) {
     present();
 
     if(settings.profile){
-        if (iFrame != 0) {
+        if (iFrame > 0) {
                 vkGetQueryPoolResults (
                     device,
                     //this has to wait for cmdbuff to finish executing on gpu, so to keep concurrency we use previous frame measurement. For 1 FIF its still current one
@@ -403,7 +413,7 @@ void Renderer::end_frame(vector<VkCommandBuffer> commandBuffers) {
         //for less fluctuation
         if (iFrame > 5) {
             for (int i = 0; i < timestampCount; i++) {
-                average_ftimestamps[i] = glm::mix (average_ftimestamps[i], ftimestamps[i], 0.1);
+                average_ftimestamps[i] = glm::mix (average_ftimestamps[i], ftimestamps[i], 1.0);
             }
         } else {
             for (int i = 0; i < timestampCount; i++) {
@@ -538,6 +548,7 @@ void Renderer::createSampler(VkSampler* sampler, VkFilter mag, VkFilter min,
 
 void Renderer::destroySampler(VkSampler sampler){
     vkDestroySampler(device, sampler, NULL);
+    sampler = VK_NULL_HANDLE;
 }
 void Renderer::createImageFromMemorySingleTime(Image* image, const void* source, u32 bufferSize){
     assert (bufferSize != 0);
@@ -867,7 +878,7 @@ void Renderer::cmdEndRenderPass(VkCommandBuffer commandBuffer, RenderPass* rpass
 
 void Renderer::cmdBindPipe(VkCommandBuffer commandBuffer, RasterPipe pipe){
 println
-    PLACE_TIMESTAMP(commandBuffer);
+    // PLACE_TIMESTAMP(commandBuffer);
 println
     vkCmdBindPipeline (commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.line);
 println
@@ -875,7 +886,7 @@ println
 println
 }
 void Renderer::cmdBindPipe(VkCommandBuffer commandBuffer, ComputePipe pipe){
-    PLACE_TIMESTAMP(commandBuffer);
+    // PLACE_TIMESTAMP(commandBuffer);
     vkCmdBindPipeline (commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipe.line);
     vkCmdBindDescriptorSets (commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipe.lineLayout, 0, 1, &pipe.sets.current(), 0, 0);
 }
