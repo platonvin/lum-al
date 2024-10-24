@@ -226,10 +226,30 @@ typedef struct Settings {
     VkPhysicalDeviceVulkan11Features deviceFeatures11 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES};
     VkPhysicalDeviceVulkan12Features deviceFeatures12 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
     VkPhysicalDeviceFeatures2 physical_features2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+
+    vector<const char*> instanceLayers = {};
+    vector<const char*> instanceExtensions = {
+        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
+        VK_KHR_SURFACE_EXTENSION_NAME,
+        // "VK_KHR_win32_surface",
+    };
+    vector<const char*> deviceExtensions = {
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+        VK_EXT_HOST_QUERY_RESET_EXTENSION_NAME, //for measuring frame times - dynamic quality to perfomance exchange
+        // VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME
+    };
+
     Settings(){
         deviceFeatures12.pNext = &deviceFeatures11;
         physical_features2.pNext = &deviceFeatures12;
     }
+
+    void addExtraFeaturesPnext(auto* features_ptr){
+        void* pnext = physical_features2.pNext;
+        physical_features2.pNext = features_ptr;
+        features_ptr->pNext = pnext;
+    }
+    
 } Settings;
 
 //hash for VkSamplerCreateInfo

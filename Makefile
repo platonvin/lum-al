@@ -30,7 +30,7 @@ profile = -D_PRINTLINE -DVKNDEBUG
 profile = 
 all: init triangle
 
-obj/%.o: src/%.cpp init vcpkg_installed_eval
+obj/%.o: src/%.cpp | init vcpkg_installed_eval
 	$(CPP_COMPILER) $(library_opt_flags) $(always_enabled_flags) $(I) $(args) $(profile) -MMD -MP -c $< -o $@
 DEPS = $(lib_objs:.o=.d)
 -include $(DEPS)
@@ -54,7 +54,7 @@ shaders: examples/triag.vert examples/triag.frag examples/posteffect.frag init v
 	$(GLSLC) -o examples/posteffect.spv examples/posteffect.frag
 
 # $(CPP_COMPILER) $(lib_objs) $(I) $(L) $(REQUIRED_LIBS) $(STATIC_OR_DYNAMIC) -c -o lumal 
-lib/liblumal.a: init vcpkg_installed_eval $(lib_objs)
+lib/liblumal.a: $(lib_objs) | init vcpkg_installed_eval
 	ar rvs lib/liblumal.a $(lib_objs)
 
 library: lib/liblumal.a

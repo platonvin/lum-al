@@ -4,6 +4,7 @@
 #include "al.hpp"
 #include "defines/macros.hpp" //after al.hpp
 #include "ringbuffer.hpp"
+#include "defines/cache.hpp"
 
 using std::vector;
 
@@ -39,7 +40,7 @@ void Renderer::init (Settings settings) {
     pickPhysicalDevice();
     createLogicalDevice();
     createAllocator();
-    printl(VMAllocator);
+    DEBUG_LOG(VMAllocator);
     createSwapchain(); //should be before anything related to its size and format
     createSwapchainImageViews();
     createCommandPool();
@@ -97,12 +98,12 @@ void Renderer::destroyBuffers (Buffer* buffer) {
 
 void Renderer::cleanup() {
     vkDeviceWaitIdle(device);
-println
+TRACE();
     
     for (auto [info, sampler]: samplerMap) {
         vkDestroySampler(device, sampler, NULL);
     }
-println
+TRACE();
 
     vkDestroyDescriptorPool (device, descriptorPool, NULL);
     for (int i = 0; i < settings.fif; i++) {
@@ -114,13 +115,13 @@ println
         }
     }
     vkDestroyCommandPool (device, commandPool, NULL);
-println
+TRACE();
 
     for (auto img : swapchainImages) {
         vkDestroyImageView (device, img.view, NULL);
     }
     vkDestroySwapchainKHR (device, swapchain, NULL);
-println
+TRACE();
 
     for (int i = 0; i < settings.fif + 1; i++) {
         processDeletionQueues();
@@ -179,14 +180,14 @@ void Renderer::createSwapchain() {
 
 void Renderer::recreateSwapchain(){
     int width = 0, height = 0;
-println
+TRACE();
     glfwGetFramebufferSize(window.pointer, &width, &height);
     while (width == 0 || height == 0) {
         glfwGetFramebufferSize(window.pointer, &width, &height);
         glfwWaitEvents();
     }
 
-println
+TRACE();
     deviceWaitIdle();
     
     if(cleanupSwapchainDependent) cleanupSwapchainDependent();
@@ -195,19 +196,19 @@ println
     resetDescriptorSetup();
     deviceWaitIdle();
 
-println
+TRACE();
     for (auto img : swapchainImages) {
         vkDestroyImageView (device, img.view, NULL);
     }
     vkDestroySwapchainKHR (device, swapchain, NULL);
     // vkDestroyCommandPool(device, commandPool, NULL);    
-println
+TRACE();
     createSwapchain();
     createSwapchainImageViews();
     createCommandPool();
     // called in flushDescriptors
     // createDescriptorPool();
-println
+TRACE();
 
     if(createSwapchainDependent) createSwapchainDependent();
 }
@@ -243,17 +244,17 @@ void Renderer::createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<rin
     for (auto imgs : imgs4views){
         lcm = std::lcm((*imgs).size(), lcm);
     }
-    printl(lcm)
-println
+    DEBUG_LOG(lcm)
+TRACE();
     
     (*framebuffers).allocate (lcm);
     for (u32 i = 0; i < lcm; i++) {
         vector<VkImageView> attachments = {};
         for (auto imgs : imgs4views) {
-            printl((*imgs).size())
+            DEBUG_LOG((*imgs).size())
             int internal_iter = i % (*imgs).size();
             attachments.push_back ((*imgs)[internal_iter].view);
-            printl((*imgs)[internal_iter].view)
+            DEBUG_LOG((*imgs)[internal_iter].view)
         }
         VkFramebufferCreateInfo 
             framebufferInfo = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
@@ -301,23 +302,23 @@ void Renderer::processDeletionQueues() {
 
 // #include <glm/gtx/string_cast.hpp>
 void Renderer::start_frame(vector<VkCommandBuffer> commandBuffers) {
-    println
+    TRACE();
     vkWaitForFences (device, 1, &frameInFlightFences.current(), VK_TRUE, UINT32_MAX);
-    println
+    TRACE();
     vkResetFences (device, 1, &frameInFlightFences.current());
 
     VkCommandBufferBeginInfo beginInfo = {};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags = 0;
         beginInfo.pInheritanceInfo = NULL;
-    println
+    TRACE();
     for (auto cb : commandBuffers){
         assert(cb != VK_NULL_HANDLE);
         vkResetCommandBuffer(cb, 0);
-    println
+    TRACE();
         vkBeginCommandBuffer(cb, &beginInfo);
     }
-    println
+    TRACE();
 
     VkResult result = vkAcquireNextImageKHR (device, swapchain, UINT64_MAX, imageAvailableSemaphores.current(), VK_NULL_HANDLE, &imageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
@@ -328,7 +329,7 @@ void Renderer::start_frame(vector<VkCommandBuffer> commandBuffers) {
         printf (KRED "failed to acquire swap chain image!\n" KEND);
         exit (result);
     }
-    println
+    TRACE();
 
     if(settings.profile){
         assert(mainCommandBuffers->current() != VK_NULL_HANDLE);
@@ -497,7 +498,7 @@ void Renderer::cmdPipelineBarrier (VkCommandBuffer commandBuffer, VkPipelineStag
     );
 }
 
-//uset for image creation
+//used for image creation
 void Renderer::cmdExplicitTransLayoutBarrier (VkCommandBuffer commandBuffer, VkImageLayout srcLayout, VkImageLayout targetLayout,
                     VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
                     Image* image) {
@@ -877,18 +878,14 @@ void Renderer::cmdEndRenderPass(VkCommandBuffer commandBuffer, RenderPass* rpass
 }
 
 void Renderer::cmdBindPipe(VkCommandBuffer commandBuffer, RasterPipe pipe){
-println
     // PLACE_TIMESTAMP(commandBuffer);
-println
-    vkCmdBindPipeline (commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.line);
-println
-    vkCmdBindDescriptorSets (commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.lineLayout, 0, 1, &pipe.sets.current(), 0, 0);
-println
+    BIND_CACHED(pipe.line, vkCmdBindPipeline (commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.line));
+    BIND_CACHED(pipe.lineLayout, vkCmdBindDescriptorSets (commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.lineLayout, 0, 1, &pipe.sets.current(), 0, 0));
 }
 void Renderer::cmdBindPipe(VkCommandBuffer commandBuffer, ComputePipe pipe){
     // PLACE_TIMESTAMP(commandBuffer);
-    vkCmdBindPipeline (commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipe.line);
-    vkCmdBindDescriptorSets (commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipe.lineLayout, 0, 1, &pipe.sets.current(), 0, 0);
+    BIND_CACHED(pipe.line, vkCmdBindPipeline (commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipe.line));
+    BIND_CACHED(pipe.lineLayout, vkCmdBindDescriptorSets (commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipe.lineLayout, 0, 1, &pipe.sets.current(), 0, 0));
 }
 
 void Renderer::transitionImageLayoutSingletime (Image* image, VkImageLayout newLayout, int mipmaps) {

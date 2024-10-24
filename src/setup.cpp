@@ -21,26 +21,6 @@ using glm::dvec2,glm::dvec3,glm::dvec4;
 using glm::mat2, glm::mat3, glm::mat4;
 using glm::dmat2, glm::dmat3, glm::dmat4;
 
-//they are global because its easier lol
-vector<const char*> instanceLayers = {
-};
-/*const*/vector<const char*> instanceExtensions = {
-    VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
-
-    VK_KHR_SURFACE_EXTENSION_NAME,
-    // "VK_KHR_win32_surface",
-};
-const vector<const char*> deviceExtensions = {
-    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-    VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME, //simplifies renderer for negative cost lol
-    VK_EXT_HOST_QUERY_RESET_EXTENSION_NAME, //for measuring frame times - dynamic quality to perfomance exchange
-    VK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME, //pco / ubo +perfomance
-    VK_KHR_16BIT_STORAGE_EXTENSION_NAME, //just explicit control
-    VK_KHR_8BIT_STORAGE_EXTENSION_NAME, //just explicit control
-    VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME,
-    // VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME
-};
-
 void Renderer::createCommandPool() {
     QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
     assert(queueFamilyIndices.graphicalAndCompute.has_value());
@@ -226,7 +206,7 @@ void Renderer::createRenderPass(vector<AttachmentDescription> attachments, vecto
             pipe->subpassId = i;
         }
     }
-    printl(spassAttachs.size())
+    DEBUG_LOG(spassAttachs.size())
     vector<VkSubpassDependency> 
         dependencies (1);
         dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -279,8 +259,8 @@ void Renderer::createRenderPass(vector<AttachmentDescription> attachments, vecto
         fb_images.push_back(att.images);
     }
     rpass->extent = {(*attachments[0].images)[0].extent.width, (*attachments[0].images)[0].extent.height};
-    printl((*attachments[0].images)[0].extent.width)
-    printl((*attachments[0].images)[0].extent.height)
+    DEBUG_LOG((*attachments[0].images)[0].extent.width)
+    DEBUG_LOG((*attachments[0].images)[0].extent.height)
     createFramebuffers(&rpass->framebuffers, fb_images, rpass->rpass, rpass->extent);
 } 
 
@@ -605,7 +585,7 @@ bool Renderer::checkPhysicalDeviceExtensionSupport (VkPhysicalDevice device) {
     vkEnumerateDeviceExtensionProperties (device, NULL, &extensionCount, availableExtensions.data());
     //for time complexity? FOR CODE COMPLEXITY
     //does not apply to current code
-    vector<const char*> requiredExtensions = deviceExtensions;
+    vector<const char*> requiredExtensions = settings.deviceExtensions;
     for (auto req : requiredExtensions) {
         bool supports = false;
         for (auto avail : availableExtensions) {
@@ -709,10 +689,10 @@ void Renderer::createLogicalDevice() {
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
         createInfo.queueCreateInfoCount = queueCreateInfos.size();
         createInfo.pQueueCreateInfos = queueCreateInfos.data();
-        createInfo.enabledExtensionCount = deviceExtensions.size();
-        createInfo.ppEnabledExtensionNames = deviceExtensions.data();
-        createInfo.enabledLayerCount = instanceLayers.size();
-        createInfo.ppEnabledLayerNames = instanceLayers.data();
+        createInfo.enabledExtensionCount = settings.deviceExtensions.size();
+        createInfo.ppEnabledExtensionNames = settings.deviceExtensions.data();
+        createInfo.enabledLayerCount = settings.instanceLayers.size();
+        createInfo.ppEnabledLayerNames = settings.instanceLayers.data();
             settings.physical_features2.features = settings.deviceFeatures;
         createInfo.pNext = &settings.physical_features2;
     VK_CHECK (vkCreateDevice (physicalDevice, &createInfo, NULL, &device));
@@ -842,12 +822,12 @@ void Renderer::getInstanceLayers() {
     vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
 
     if(settings.debug){
-        instanceLayers.push_back("VK_LAYER_KHRONOS_validation");
+        settings.instanceLayers.push_back("VK_LAYER_KHRONOS_validation");
     }
     //just convenience
     for(auto layer : availableLayers){
         if(strcmp(layer.layerName, "VK_LAYER_LUNARG_monitor") == 0){
-            instanceLayers.push_back("VK_LAYER_LUNARG_monitor");
+            settings.instanceLayers.push_back("VK_LAYER_LUNARG_monitor");
         }
     }
 }
@@ -857,15 +837,15 @@ void Renderer::getInstanceExtensions() {
     assert (glfwExtensions != NULL);
     assert (glfwExtCount > 0);
     for (u32 i = 0; i < glfwExtCount; i++) {
-        instanceExtensions.push_back (glfwExtensions[i]);
-        printl (glfwExtensions[i]);
+        settings.instanceExtensions.push_back (glfwExtensions[i]);
+        DEBUG_LOG (glfwExtensions[i]);
     }
     //actual verify part
     u32 supportedExtensionCount = 0;
     VK_CHECK (vkEnumerateInstanceExtensionProperties (NULL, &supportedExtensionCount, NULL));
     vector<VkExtensionProperties> supportedInstanceExtensions (supportedExtensionCount);
     VK_CHECK (vkEnumerateInstanceExtensionProperties (NULL, &supportedExtensionCount, supportedInstanceExtensions.data()));
-    for (auto ext : instanceExtensions) {
+    for (auto ext : settings.instanceExtensions) {
         bool supported = false;
         for (auto sup : supportedInstanceExtensions) {
             if (strcmp (ext, sup.extensionName) == 0) { supported = true; }
@@ -877,7 +857,7 @@ void Renderer::getInstanceExtensions() {
     }
 
     if(settings.debug){
-        instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        settings.instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 }
 
@@ -931,10 +911,10 @@ void Renderer::createInstance() {
         }
         createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         createInfo.pApplicationInfo = &app_info;
-        createInfo.enabledExtensionCount = instanceExtensions.size();
-        createInfo.ppEnabledExtensionNames = instanceExtensions.data();
-        createInfo.enabledLayerCount = instanceLayers.size();
-        createInfo.ppEnabledLayerNames = instanceLayers.data();
+        createInfo.enabledExtensionCount = settings.instanceExtensions.size();
+        createInfo.ppEnabledExtensionNames = settings.instanceExtensions.data();
+        createInfo.enabledLayerCount = settings.instanceLayers.size();
+        createInfo.ppEnabledLayerNames = settings.instanceLayers.data();
     VK_CHECK (vkCreateInstance (&createInfo, NULL, &instance));
 }
 
@@ -1121,7 +1101,7 @@ void Renderer::createDescriptorPool() {
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         poolInfo.poolSizeCount = pull_sizes.size();
         poolInfo.pPoolSizes = pull_sizes.data();
-        poolInfo.maxSets = descriptor_sets_count;
+        poolInfo.maxSets = descriptor_sets_count * (settings.fif+0);
     VK_CHECK (vkCreateDescriptorPool (device, &poolInfo, NULL, &descriptorPool));
 }
 
@@ -1149,7 +1129,7 @@ void Renderer::deferDescriptorSetup (VkDescriptorSetLayout* dsetLayout, ring<VkD
         }
         createDescriptorSetLayout (descriptorInfos, dsetLayout, createFlags);
     }
-    descriptor_sets_count += settings.fif;
+    descriptor_sets_count += 1;
     DelayedDescriptorSetup delayed_setup = {dsetLayout, descriptorSets, descriptions, baseStages, createFlags};
     delayed_descriptor_setups.push_back (delayed_setup);
 }

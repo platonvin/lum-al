@@ -13,12 +13,11 @@
 #define KWHT  "\x1B[37m"
 
 #if defined(_PRINTLINE) || defined(_LANG_SERVER)
-// #ifdef  
-#define println printf(KGRN "%s:%d: Fun: %s\n" KEND, __FILE__, __LINE__, __FUNCTION__);
-#define printl(x) std::cout << #x " "<< x << std::endl;
+#define TRACE(__s) printf(KGRN "%s:%d: Fun: %s\n" KEND, __FILE__, __LINE__, __FUNCTION__); __s
+#define DEBUG_LOG(x) std::cout << #x " "<< x << std::endl;
 #else 
-#define println do {} while(0);
-#define printl(x) do {} while(0);
+#define TRACE(__s) __s; // TODO: CPU profiler
+#define DEBUG_LOG(x) do {} while(0);
 #endif
 
 #define STRINGIZE(x) STRINGIZE2(x)
@@ -80,3 +79,5 @@
     res;\
     }
 #endif
+
+// #define CACHE_BINDING()
