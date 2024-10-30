@@ -352,8 +352,9 @@ public:
     void cmdSetViewport(VkCommandBuffer commandBuffer, int width, int height);
     void cmdSetViewport(VkCommandBuffer commandBuffer, VkExtent2D extent);
 
-    template<class Vertex_T> ring<Buffer> createElemBuffers (Vertex_T* vertices, u32 count, u32 buffer_usage = 0);
-    template<class Vertex_T> ring<Buffer> createElemBuffers (vector<Vertex_T> vertices, u32 buffer_usage = 0);
+    template<class Elem_T> ring<Buffer> createElemBuffers (Elem_T* vertices, u32 count, u32 buffer_usage = 0);
+    template<class Elem_T> ring<Buffer> createElemBuffers (vector<Elem_T> vertices, u32 buffer_usage = 0);
+    template<class Elem_T> Buffer createElemBuffer (Elem_T* elements, u32 count, u32 buffer_usage);
 
     void createAllocator();
     void createWindow();
@@ -625,6 +626,43 @@ template<class Elem_T> ring<Buffer> Renderer::createElemBuffers (Elem_T* element
         vmaCreateBuffer (VMAllocator, &bufferInfo, &allocInfo, &elems[i].buffer, &elems[i].alloc, NULL);
         copyBufferSingleTime (stagingBuffer, elems[i].buffer, bufferSize);
     }
+    vmaDestroyBuffer (VMAllocator, stagingBuffer, stagingAllocation);
+    return elems;
+}
+
+template<class Elem_T> Buffer Renderer::createElemBuffer (Elem_T* elements, u32 count, u32 buffer_usage) {
+    VkDeviceSize bufferSize = sizeof (Elem_T) * count;
+    Buffer elems = {};
+    VkBufferCreateInfo 
+        stagingBufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+        stagingBufferInfo.size = bufferSize;
+        stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    VmaAllocationCreateInfo 
+        stagingAllocInfo = {};
+        stagingAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+        stagingAllocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        stagingAllocInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    VkBuffer stagingBuffer = {};
+    VmaAllocation stagingAllocation = {};
+    vmaCreateBuffer (VMAllocator, &stagingBufferInfo, &stagingAllocInfo, &stagingBuffer, &stagingAllocation, NULL);
+    void* data;
+    assert (VMAllocator);
+    assert (stagingAllocation);
+    assert (&data);
+    vmaMapMemory (VMAllocator, stagingAllocation, &data);
+    memcpy (data, elements, bufferSize);
+    vmaUnmapMemory (VMAllocator, stagingAllocation);
+    // for (i32 i = 0; i < settings.fif; i++) {
+        VkBufferCreateInfo 
+            bufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+            bufferInfo.size = bufferSize;
+            bufferInfo.usage = buffer_usage;
+        VmaAllocationCreateInfo 
+            allocInfo = {};
+            allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+        vmaCreateBuffer (VMAllocator, &bufferInfo, &allocInfo, &elems.buffer, &elems.alloc, NULL);
+        copyBufferSingleTime (stagingBuffer, elems.buffer, bufferSize);
+    // }
     vmaDestroyBuffer (VMAllocator, stagingBuffer, stagingAllocation);
     return elems;
 }

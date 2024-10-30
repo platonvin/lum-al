@@ -1121,6 +1121,7 @@ void Renderer::resetDescriptorSetup () {
     delayed_descriptor_setups.clear();
 }
 void Renderer::deferDescriptorSetup (VkDescriptorSetLayout* dsetLayout, ring<VkDescriptorSet>* descriptorSets, vector<DescriptorInfo> descriptions, VkShaderStageFlags baseStages, VkDescriptorSetLayoutCreateFlags createFlags) {
+    DEBUG_LOG(*dsetLayout)
     if (*dsetLayout == VK_NULL_HANDLE) {
         vector<ShortDescriptorInfo> descriptorInfos (descriptions.size());
         for (int i = 0; i < descriptions.size(); i++) {
@@ -1191,14 +1192,21 @@ void Renderer::setupDescriptor (VkDescriptorSetLayout* dsetLayout, ring<VkDescri
 }
 
 void Renderer::flushDescriptorSetup() {
+TRACE();
     createDescriptorPool();
+TRACE();
+    DEBUG_LOG(delayed_descriptor_setups.data());
+    DEBUG_LOG(delayed_descriptor_setups.size());
+TRACE();
     // for(int i=0; i<delayed_descriptor_setups.size(); i++) {
     for (auto setup : delayed_descriptor_setups) {
+TRACE();
         if ((setup.sets->empty())) {
             allocate_Descriptor (*setup.sets, *setup.setLayout, descriptorPool, device, settings.fif);
         }
         setupDescriptor (setup.setLayout, setup.sets, setup.descriptions, setup.stages);
     }
+TRACE();
 }
 
 void Renderer::debugValidate(){

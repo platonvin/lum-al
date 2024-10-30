@@ -29,8 +29,8 @@
 // if previous bound resorce is the same then do not rebind to the same
 // does not take arguments in count
 #define BIND_CACHED(__Resource, __BIND_FUNCTION) _INIT_BIND_CACHED(__Resource) do {\
-    if(CONCAT(__OLD_RESOURCE, __LINE__) != __Resource) {                           \
         __BIND_FUNCTION;                                                           \
+    if(CONCAT(__OLD_RESOURCE, __LINE__) != __Resource) {                           \
         CONCAT(__OLD_RESOURCE, __LINE__) = __Resource;                             \
     } else {                                                                       \
         /*nothing*/                                                                \

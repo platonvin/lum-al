@@ -125,7 +125,9 @@ TRACE();
 
     for (int i = 0; i < settings.fif + 1; i++) {
         processDeletionQueues();
-    }
+    } 
+    assert((bufferDeletionQueue.size() == 0) && "buffer deletion lifetime was way to long. There is no reason to keep it higher than FIF"); 
+    assert(( imageDeletionQueue.size() == 0) &&  "image deletion lifetime was way to long. There is no reason to keep it higher than FIF"); 
     vmaDestroyAllocator (VMAllocator); //do before destroyDevice
     vkDestroyDevice (device, NULL);
     vkDestroySurfaceKHR (instance, surface, NULL);
@@ -293,6 +295,9 @@ void Renderer::processDeletionQueues() {
             bufferDeletionQueue[write_index].life_counter -= 1;
             write_index++;
         } else {
+            if (bufferDeletionQueue[i].buffer.mapped != NULL) {
+                vmaUnmapMemory (VMAllocator, bufferDeletionQueue[i].buffer.alloc);
+            }
             vmaDestroyBuffer (VMAllocator, bufferDeletionQueue[i].buffer.buffer, bufferDeletionQueue[i].buffer.alloc);
         }
     }
