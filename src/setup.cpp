@@ -4,6 +4,7 @@
 #include <map>
 #include <set>
 #include <fstream>
+#include <climits>
 
 // using namespace std;
 using glm::u8, glm::u16, glm::u16, glm::u32;
