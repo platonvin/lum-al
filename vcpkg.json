@@ -29,13 +29,6 @@
       ]
     },
     {
-      "name": "spirv-tools",
-      "default-features": false,
-      "features": [
-        "tools"
-      ]
-    },
-    {
       "name": "glslang",
       "default-features": false,
       "features": [
