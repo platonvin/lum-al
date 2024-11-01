@@ -130,9 +130,9 @@ endif
 
 vcpkg_installed: | check_vcpkg_itself
 	@echo installing vcpkg dependencies. Please do not interrupt
-	$(VCPKG_EXEC) install --overlay-triplets=vcpkg_triplets --triplet=x64-lum-rel
+	$(VCPKG_EXEC) install
 
 update: init clean | check_vcpkg_itself
 	@echo updating vcpkg dependencies. Please do not interrupt
 	$(info VCPKG IS FOUND AS $(VCPKG_EXEC))
-	$(VCPKG_EXEC) install --overlay-triplets=vcpkg_triplets --triplet=x64-lum-rel
+	$(VCPKG_EXEC) install
