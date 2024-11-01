@@ -25,7 +25,7 @@ using glm::dmat2, glm::dmat3, glm::dmat4;
 
 tuple<int, int> get_block_xy (int N);
 
-void Renderer::init (Settings settings) {
+void Lumal::Renderer::init (Settings settings) {
     this->settings = settings;
     timestampCount = settings.timestampCount;
 
@@ -65,13 +65,13 @@ void Renderer::init (Settings settings) {
     }
 }
 
-void Renderer::destroyImages (ring<Image>* images) {
+void Lumal::Renderer::destroyImages (ring<Image>* images) {
     for (auto& img : (*images)) {
         destroyImages(&img);
     }
     *images = {};
 }
-void Renderer::destroyImages (Image* image) {
+void Lumal::Renderer::destroyImages (Image* image) {
     // "just" .view and .mip_views[0] are not the same
     // from 0 to .size() is important
     for(int i=0; i < (*image).mip_views.size(); i++){
@@ -82,13 +82,13 @@ void Renderer::destroyImages (Image* image) {
     *image = {};
 }
 
-void Renderer::destroyBuffers (ring<Buffer>* buffers) {
+void Lumal::Renderer::destroyBuffers (ring<Buffer>* buffers) {
     for (auto& buf : (*buffers)) {
         destroyBuffers(&buf);
     }
     *buffers = {};
 }
-void Renderer::destroyBuffers (Buffer* buffer) {
+void Lumal::Renderer::destroyBuffers (Buffer* buffer) {
     if((*buffer).mapped != NULL){
         vmaUnmapMemory (VMAllocator, (*buffer).alloc);
     }
@@ -96,7 +96,7 @@ void Renderer::destroyBuffers (Buffer* buffer) {
     *buffer = {};
 }
 
-void Renderer::cleanup() {
+void Lumal::Renderer::cleanup() {
     vkDeviceWaitIdle(device);
 TRACE();
     
@@ -136,7 +136,7 @@ TRACE();
     glfwDestroyWindow (window.pointer);
 }
 
-void Renderer::createSwapchain() {
+void Lumal::Renderer::createSwapchain() {
     SwapChainSupportDetails swapChainSupport = querySwapchainSupport (physicalDevice);
     VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat (swapChainSupport.formats);
     VkPresentModeKHR presentMode = chooseSwapPresentMode (swapChainSupport.presentModes);
@@ -180,7 +180,7 @@ void Renderer::createSwapchain() {
     swapChainExtent = extent;
 }
 
-void Renderer::recreateSwapchain(){
+void Lumal::Renderer::recreateSwapchain(){
     int width = 0, height = 0;
 TRACE();
     glfwGetFramebufferSize(window.pointer, &width, &height);
@@ -215,7 +215,7 @@ TRACE();
     if(createSwapchainDependent) createSwapchainDependent();
 }
 
-void Renderer::createSwapchainImageViews() {
+void Lumal::Renderer::createSwapchainImageViews() {
     for (i32 i = 0; i < swapchainImages.size(); i++) {
         VkImageViewCreateInfo createInfo = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
             createInfo.image = swapchainImages[i].image;
@@ -239,7 +239,7 @@ void Renderer::createSwapchainImageViews() {
     }
 }
 
-void Renderer::createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>*> imgs4views, VkRenderPass renderPass, u32 Width, u32 Height) {
+void Lumal::Renderer::createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>*> imgs4views, VkRenderPass renderPass, u32 Width, u32 Height) {
     //we want to iterate over ring, so we need Least Common Multiple of ring's sizes 
     //for example: 1 depth buffer, 3 swapchain image, 2 taa images result in 6 framebuffers
     int lcm = 1;
@@ -269,10 +269,10 @@ TRACE();
         VK_CHECK (vkCreateFramebuffer (device, &framebufferInfo, NULL, & (*framebuffers)[i]));
     }
 }
-void Renderer::createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>*> imgs4views, VkRenderPass renderPass, VkExtent2D extent) {
+void Lumal::Renderer::createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>*> imgs4views, VkRenderPass renderPass, VkExtent2D extent) {
     createFramebuffers(framebuffers, imgs4views, renderPass, extent.width, extent.height);
 }
-void Renderer::processDeletionQueues() {
+void Lumal::Renderer::processDeletionQueues() {
     int write_index = 0;
     write_index = 0;
     for (int i = 0; i < imageDeletionQueue.size(); i++) {
@@ -306,7 +306,7 @@ void Renderer::processDeletionQueues() {
 
 
 // #include <glm/gtx/string_cast.hpp>
-void Renderer::start_frame(vector<VkCommandBuffer> commandBuffers) {
+void Lumal::Renderer::start_frame(vector<VkCommandBuffer> commandBuffers) {
     TRACE();
     vkWaitForFences (device, 1, &frameInFlightFences.current(), VK_TRUE, UINT32_MAX);
     TRACE();
@@ -349,7 +349,7 @@ void Renderer::start_frame(vector<VkCommandBuffer> commandBuffers) {
     }
 }
 
-void Renderer::present() {
+void Lumal::Renderer::present() {
     vector<VkSemaphore> waitSemaphores = {renderFinishedSemaphores.current()};
     
     VkSwapchainKHR swapchains[] = {swapchain};
@@ -375,7 +375,7 @@ void Renderer::present() {
     }
 }
 
-void Renderer::end_frame(vector<VkCommandBuffer> commandBuffers) {
+void Lumal::Renderer::end_frame(vector<VkCommandBuffer> commandBuffers) {
     for(auto cb : commandBuffers){
         vkEndCommandBuffer(cb);
     }
@@ -438,9 +438,13 @@ void Renderer::end_frame(vector<VkCommandBuffer> commandBuffers) {
     }
 
     processDeletionQueues();
+
+    CACHED_BOUND_PIPELINE = VK_NULL_HANDLE;
+    CACHED_BOUND_VERTEX_BUFFER = VK_NULL_HANDLE;
+    CACHED_BOUND_INDEX_BUFFER = VK_NULL_HANDLE;
 }
 
-void Renderer::cmdPipelineBarrier (VkCommandBuffer commandBuffer,
+void Lumal::Renderer::cmdPipelineBarrier (VkCommandBuffer commandBuffer,
                 VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask,
                 VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
                 Buffer buffer) {
@@ -463,7 +467,7 @@ void Renderer::cmdPipelineBarrier (VkCommandBuffer commandBuffer,
     );
 }
 
-void Renderer::cmdPipelineBarrier (VkCommandBuffer commandBuffer,
+void Lumal::Renderer::cmdPipelineBarrier (VkCommandBuffer commandBuffer,
                 VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask,
                 VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
                 Image image) {
@@ -492,7 +496,7 @@ void Renderer::cmdPipelineBarrier (VkCommandBuffer commandBuffer,
     );
 }
 
-void Renderer::cmdPipelineBarrier (VkCommandBuffer commandBuffer, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask) {
+void Lumal::Renderer::cmdPipelineBarrier (VkCommandBuffer commandBuffer, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask) {
     vkCmdPipelineBarrier (
         commandBuffer,
         srcStageMask, dstStageMask,
@@ -504,7 +508,7 @@ void Renderer::cmdPipelineBarrier (VkCommandBuffer commandBuffer, VkPipelineStag
 }
 
 //used for image creation
-void Renderer::cmdExplicitTransLayoutBarrier (VkCommandBuffer commandBuffer, VkImageLayout srcLayout, VkImageLayout targetLayout,
+void Lumal::Renderer::cmdExplicitTransLayoutBarrier (VkCommandBuffer commandBuffer, VkImageLayout srcLayout, VkImageLayout targetLayout,
                     VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
                     Image* image) {
     VkImageMemoryBarrier 
@@ -532,7 +536,7 @@ void Renderer::cmdExplicitTransLayoutBarrier (VkCommandBuffer commandBuffer, VkI
     );
 }
 
-void Renderer::createSampler(VkSampler* sampler, VkFilter mag, VkFilter min, 
+void Lumal::Renderer::createSampler(VkSampler* sampler, VkFilter mag, VkFilter min, 
     VkSamplerAddressMode U, VkSamplerAddressMode V, VkSamplerAddressMode W) {
     VkSamplerCreateInfo samplerInfo{};
 		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -552,11 +556,11 @@ void Renderer::createSampler(VkSampler* sampler, VkFilter mag, VkFilter min,
 		VK_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, sampler));
 }
 
-void Renderer::destroySampler(VkSampler sampler){
+void Lumal::Renderer::destroySampler(VkSampler sampler){
     vkDestroySampler(device, sampler, NULL);
     sampler = VK_NULL_HANDLE;
 }
-void Renderer::createImageFromMemorySingleTime(Image* image, const void* source, u32 bufferSize){
+void Lumal::Renderer::createImageFromMemorySingleTime(Image* image, const void* source, u32 bufferSize){
     assert (bufferSize != 0);
     VkBufferCreateInfo 
         stagingBufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
@@ -596,14 +600,14 @@ void Renderer::createImageFromMemorySingleTime(Image* image, const void* source,
     endSingleTimeCommands(copyCommandBuffer);
 }
 //slow.
-void Renderer::copyBufferSingleTime (VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
+void Lumal::Renderer::copyBufferSingleTime (VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
     VkCommandBuffer commandBuffer = beginSingleTimeCommands();
     VkBufferCopy copyRegion{};
     copyRegion.size = size;
     vkCmdCopyBuffer (commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
     endSingleTimeCommands (commandBuffer);
 }
-void Renderer::copyBufferSingleTime (VkBuffer srcBuffer, Image* image, uvec3 size) {
+void Lumal::Renderer::copyBufferSingleTime (VkBuffer srcBuffer, Image* image, uvec3 size) {
     VkCommandBuffer commandBuffer = beginSingleTimeCommands();
     VkBufferImageCopy 
         copyRegion = {};
@@ -616,7 +620,7 @@ void Renderer::copyBufferSingleTime (VkBuffer srcBuffer, Image* image, uvec3 siz
     endSingleTimeCommands (commandBuffer);
 }
 
-VkCommandBuffer Renderer::beginSingleTimeCommands() {
+VkCommandBuffer Lumal::Renderer::beginSingleTimeCommands() {
     VkCommandBufferAllocateInfo 
         allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -633,7 +637,7 @@ VkCommandBuffer Renderer::beginSingleTimeCommands() {
     return commandBuffer;
 }
 
-void Renderer::endSingleTimeCommands (VkCommandBuffer commandBuffer) {
+void Lumal::Renderer::endSingleTimeCommands (VkCommandBuffer commandBuffer) {
     vkEndCommandBuffer (commandBuffer);
     VkSubmitInfo 
         submitInfo{};
@@ -646,7 +650,7 @@ void Renderer::endSingleTimeCommands (VkCommandBuffer commandBuffer) {
     vkFreeCommandBuffers (device, commandPool, 1, &commandBuffer);
 }
 
-void Renderer::generateMipmaps (VkCommandBuffer commandBuffer, VkImage image, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, VkImageAspectFlags aspect) {
+void Lumal::Renderer::generateMipmaps (VkCommandBuffer commandBuffer, VkImage image, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, VkImageAspectFlags aspect) {
     // VkCommandBuffer commandBuffer = begin_Single_Time_Commands();
     VkImageMemoryBarrier 
         barrier{};
@@ -715,7 +719,7 @@ void Renderer::generateMipmaps (VkCommandBuffer commandBuffer, VkImage image, in
     // end_Single_Time_Commands(commandBuffer);
 }
 
-void Renderer::copyWholeImage (VkCommandBuffer cmdbuf, Image src, Image dst) {
+void Lumal::Renderer::copyWholeImage (VkCommandBuffer cmdbuf, Image src, Image dst) {
     VkImageCopy 
         copy_op = {};
         copy_op.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -763,7 +767,7 @@ void Renderer::copyWholeImage (VkCommandBuffer cmdbuf, Image src, Image dst) {
     );
 }
 
-void Renderer::blitWholeImage (VkCommandBuffer cmdbuf, Image src, Image dst, VkFilter filter) {
+void Lumal::Renderer::blitWholeImage (VkCommandBuffer cmdbuf, Image src, Image dst, VkFilter filter) {
     VkImageBlit 
         blit_op = {};
         blit_op.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -813,7 +817,7 @@ void Renderer::blitWholeImage (VkCommandBuffer cmdbuf, Image src, Image dst, VkF
     );
 }
 
-VkFormat Renderer::findSupportedFormat (vector<VkFormat> candidates,
+VkFormat Lumal::Renderer::findSupportedFormat (vector<VkFormat> candidates,
                         VkImageType type,
                         VkImageTiling tiling,
                         VkImageUsageFlags usage) {
@@ -834,7 +838,7 @@ VkFormat Renderer::findSupportedFormat (vector<VkFormat> candidates,
     crash (Failed to find supported format!);
 }
 
-void Renderer::cmdSetViewport(VkCommandBuffer commandBuffer, int width, int height){
+void Lumal::Renderer::cmdSetViewport(VkCommandBuffer commandBuffer, int width, int height){
     VkViewport 
         viewport = {};
         viewport.x = 0.0f;
@@ -851,17 +855,17 @@ void Renderer::cmdSetViewport(VkCommandBuffer commandBuffer, int width, int heig
         scissor.extent.height = height;
     vkCmdSetScissor (commandBuffer, 0, 1, &scissor);
 }
-void Renderer::cmdSetViewport(VkCommandBuffer commandBuffer, VkExtent2D extent){
+void Lumal::Renderer::cmdSetViewport(VkCommandBuffer commandBuffer, VkExtent2D extent){
     cmdSetViewport(commandBuffer, extent.width, extent.height);
 }
 
-void Renderer::cmdDraw(VkCommandBuffer commandBuffer, u32 vertexCount, u32 instanceCount, u32 firstVertex, u32 firstInstance){
+void Lumal::Renderer::cmdDraw(VkCommandBuffer commandBuffer, u32 vertexCount, u32 instanceCount, u32 firstVertex, u32 firstInstance){
     vkCmdDraw(commandBuffer, vertexCount, instanceCount, firstVertex, firstInstance);
 }
-void Renderer::cmdDispatch(VkCommandBuffer commandBuffer, u32 groupCountX, u32 groupCountY, u32 groupCountZ){
+void Lumal::Renderer::cmdDispatch(VkCommandBuffer commandBuffer, u32 groupCountX, u32 groupCountY, u32 groupCountZ){
     vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);
 }
-void Renderer::cmdBeginRenderPass(VkCommandBuffer commandBuffer, RenderPass* rpass){
+void Lumal::Renderer::cmdBeginRenderPass(VkCommandBuffer commandBuffer, RenderPass* rpass){
     VkRenderPassBeginInfo 
         renderPassInfo = {};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -874,26 +878,40 @@ void Renderer::cmdBeginRenderPass(VkCommandBuffer commandBuffer, RenderPass* rpa
     vkCmdBeginRenderPass (commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     cmdSetViewport(commandBuffer, rpass->extent);
 }
-void Renderer::cmdNextSubpass(VkCommandBuffer commandBuffer, RenderPass* rpass){
+void Lumal::Renderer::cmdNextSubpass(VkCommandBuffer commandBuffer, RenderPass* rpass){
     vkCmdNextSubpass (commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
 }
-void Renderer::cmdEndRenderPass(VkCommandBuffer commandBuffer, RenderPass* rpass){
+void Lumal::Renderer::cmdEndRenderPass(VkCommandBuffer commandBuffer, RenderPass* rpass){
     vkCmdEndRenderPass (commandBuffer);
     rpass->framebuffers.move();
 }
 
-void Renderer::cmdBindPipe(VkCommandBuffer commandBuffer, RasterPipe pipe){
+void Lumal::Renderer::cmdBindPipe(VkCommandBuffer commandBuffer, RasterPipe* pipe){
     // PLACE_TIMESTAMP(commandBuffer);
-    BIND_CACHED(pipe.line, vkCmdBindPipeline (commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.line));
-    BIND_CACHED(pipe.lineLayout, vkCmdBindDescriptorSets (commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.lineLayout, 0, 1, &pipe.sets.current(), 0, 0));
+    bool use_cached = false;
+    if(CACHED_BOUND_PIPELINE == pipe->line){
+        use_cached = true;
+    }
+    if(not use_cached) {
+        vkCmdBindPipeline (commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe->line);
+        vkCmdBindDescriptorSets (commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe->lineLayout, 0, 1, &pipe->sets.current(), 0, 0);
+        CACHED_BOUND_PIPELINE = pipe->line;
+    }
 }
-void Renderer::cmdBindPipe(VkCommandBuffer commandBuffer, ComputePipe pipe){
+void Lumal::Renderer::cmdBindPipe(VkCommandBuffer commandBuffer, ComputePipe* pipe){
     // PLACE_TIMESTAMP(commandBuffer);
-    BIND_CACHED(pipe.line, vkCmdBindPipeline (commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipe.line));
-    BIND_CACHED(pipe.lineLayout, vkCmdBindDescriptorSets (commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipe.lineLayout, 0, 1, &pipe.sets.current(), 0, 0));
+    bool use_cached = false;
+    if(CACHED_BOUND_PIPELINE == pipe->line){
+        use_cached = true;
+    }
+    if(not use_cached) {
+        vkCmdBindPipeline (commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipe->line);
+        vkCmdBindDescriptorSets (commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipe->lineLayout, 0, 1, &pipe->sets.current(), 0, 0);
+        CACHED_BOUND_PIPELINE = pipe->line;
+    }
 }
 
-void Renderer::transitionImageLayoutSingletime (Image* image, VkImageLayout newLayout, int mipmaps) {
+void Lumal::Renderer::transitionImageLayoutSingletime (Image* image, VkImageLayout newLayout, int mipmaps) {
     VkCommandBuffer commandBuffer = beginSingleTimeCommands();
     VkImageMemoryBarrier 
         barrier{};
@@ -918,4 +936,28 @@ void Renderer::transitionImageLayoutSingletime (Image* image, VkImageLayout newL
         1, &barrier
     );
     endSingleTimeCommands (commandBuffer);
+}
+
+void Lumal::Renderer::cmdBindVertexBuffers(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount, const VkBuffer* pBuffers, const VkDeviceSize* pOffsets){
+    bool use_cached = false;
+    if((CACHED_BOUND_VERTEX_BUFFER == pBuffers[0]) and (bindingCount == 1)){
+        use_cached = true;
+    }
+    if(not use_cached) {
+        vkCmdBindVertexBuffers(commandBuffer, firstBinding, bindingCount, pBuffers, pOffsets);
+        CACHED_BOUND_VERTEX_BUFFER = pBuffers[0];
+    }
+}
+void Lumal::Renderer::cmdBindIndexBuffer(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkIndexType indexType){
+    bool use_cached = false;
+    if(CACHED_BOUND_INDEX_BUFFER == buffer){
+        use_cached = true;
+    }
+    if(not use_cached) {
+        vkCmdBindIndexBuffer(commandBuffer, buffer, offset, indexType);
+        CACHED_BOUND_INDEX_BUFFER = buffer;
+    }
+}
+void Lumal::Renderer::cmdBindDescriptorSets(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t firstSet, uint32_t descriptorSetCount, const VkDescriptorSet* pDescriptorSets, uint32_t dynamicOffsetCount, const uint32_t* pDynamicOffsets){
+    vkCmdBindDescriptorSets(commandBuffer, pipelineBindPoint, layout, firstSet, descriptorSetCount, pDescriptorSets, dynamicOffsetCount, pDynamicOffsets);
 }

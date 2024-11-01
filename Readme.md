@@ -39,6 +39,6 @@ to prevent your language server from parsing files it should not, define _LANG_S
     - On Linux, GLFW may ask you to install multiple packages. Install them in advance:
 `sudo apt install libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config build-essential`.
      - Built library is placed into /lib. Use `-llumal` to link with it (do not forget to `-Llum-al/lib`)
- - use `make example` to build and run example-triangle.
+ - use `make triangle` to build and run example-triangle.
 
 see [src/al.hpp](src/al.hpp) for more info

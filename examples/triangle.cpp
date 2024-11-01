@@ -2,8 +2,9 @@
 #include "defines/macros.hpp"
 
 //example fo simple triangle rendering with 2 subpasses - main shading and posteffect
-//println is literally "printf __LINE__"
+//TRACE() is literally "printf __LINE__"
 
+using namespace Lumal;
 Renderer render = {};
 RasterPipe simple_raster_pipe = {};
 RasterPipe simple_posteffect_pipe = {};
@@ -41,7 +42,7 @@ std::function<VkResult(void)> createSwapchainDependent = [](){
         .setLayout(&simple_raster_pipe.setLayout)
         .setDescriptorSets(&simple_raster_pipe.sets)
         .defer();
-println
+TRACE()
     render.descriptorBuilder
         .setLayout(&simple_posteffect_pipe.setLayout)
         .setDescriptorSets(&simple_posteffect_pipe.sets)
@@ -49,9 +50,9 @@ println
             {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, RD_FIRST, {/*empty*/}, &simple_inter_image, NO_SAMPLER, VK_IMAGE_LAYOUT_GENERAL, VK_SHADER_STAGE_FRAGMENT_BIT}
         })
         .defer();
-println
+TRACE()
     render.flushDescriptorSetup();
-println
+TRACE()
 
     render.renderPassBuilder.setAttachments({
             {&simple_inter_image,   DontCare, DontCare, DontCare, DontCare, {}, VK_IMAGE_LAYOUT_GENERAL},
@@ -61,19 +62,19 @@ println
             {{&simple_posteffect_pipe}, {&simple_inter_image}, {&render.swapchainImages}, {}}
         }).build(&simple_rpass);
 
-println
+TRACE()
     render.pipeBuilder.setStages({
             {"examples/vert.spv", VK_SHADER_STAGE_VERTEX_BIT},
             {"examples/frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT}
         }).setExtent(render.swapChainExtent).setBlends({NO_BLEND})
         .buildRaster(&simple_raster_pipe);
-println
+TRACE()
     render.pipeBuilder.setStages({
             {"examples/vert.spv", VK_SHADER_STAGE_VERTEX_BIT},
             {"examples/posteffect.spv", VK_SHADER_STAGE_FRAGMENT_BIT}
         }).setExtent(render.swapChainExtent).setBlends({NO_BLEND})
         .buildRaster(&simple_posteffect_pipe);
-println
+TRACE()
 
     //you typically want to have FIF'count command buffers in their ring
     //but if you only need like 1 "baked" command buffer, just use 1
@@ -91,7 +92,7 @@ std::function<VkResult(void)> cleanupSwapchainDependent = [](){
     render.destroyRenderPass(&simple_rpass);
     render.destroyRasterPipeline(&simple_raster_pipe);
     render.destroyRasterPipeline(&simple_posteffect_pipe);
-    render.deleteImages(&simple_inter_image);
+    render.destroyImages(&simple_inter_image);
     return VK_SUCCESS;
 };
 
@@ -109,33 +110,33 @@ int main(){
     render.cleanupSwapchainDependent = cleanupSwapchainDependent;
 
     createSwapchainDependent();
-println
+TRACE()
 
     while(!glfwWindowShouldClose(render.window.pointer) && (glfwGetKey(render.window.pointer, GLFW_KEY_ESCAPE) != GLFW_PRESS)){
         glfwPollEvents();
-println
+TRACE()
         render.start_frame({mainCommandBuffers.current()});                
-println
+TRACE()
             render.cmdBeginRenderPass(mainCommandBuffers.current(), &simple_rpass);
-println
-                render.cmdBindPipe(mainCommandBuffers.current(), simple_raster_pipe);
-println
+TRACE()
+                render.cmdBindPipe(mainCommandBuffers.current(), &simple_raster_pipe);
+TRACE()
                    render.cmdDraw(mainCommandBuffers.current(), 3, 1, 0, 0);
-println
+TRACE()
             render.cmdNextSubpass(mainCommandBuffers.current(), &simple_rpass);
-println
-                render.cmdBindPipe(mainCommandBuffers.current(), simple_posteffect_pipe);
-println
+TRACE()
+                render.cmdBindPipe(mainCommandBuffers.current(), &simple_posteffect_pipe);
+TRACE()
                    render.cmdDraw(mainCommandBuffers.current(), 3, 1, 0, 0);
-println
+TRACE()
             render.cmdEndRenderPass(mainCommandBuffers.current(), &simple_rpass);
-println
+TRACE()
         render.end_frame({mainCommandBuffers.current()});
         //you are the one responsible for this, because using "previous" command buffer is quite common
         mainCommandBuffers.move();
         // static int ctr=0; ctr++; if(ctr==2) abort();
     }
-println
+TRACE()
     cleanupSwapchainDependent();
     render.cleanup();
 }

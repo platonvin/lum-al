@@ -21,7 +21,7 @@ using glm::dvec2,glm::dvec3,glm::dvec4;
 using glm::mat2, glm::mat3, glm::mat4;
 using glm::dmat2, glm::dmat3, glm::dmat4;
 
-void Renderer::createCommandPool() {
+void Lumal::Renderer::createCommandPool() {
     QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
     assert(queueFamilyIndices.graphicalAndCompute.has_value());
 
@@ -34,7 +34,7 @@ void Renderer::createCommandPool() {
     VK_CHECK(vkCreateCommandPool(device, &poolInfo, NULL, &commandPool));
 }
 
-void Renderer::createCommandBuffers(ring<VkCommandBuffer>* commandBuffers, u32 size) {
+void Lumal::Renderer::createCommandBuffers(ring<VkCommandBuffer>* commandBuffers, u32 size) {
     assert(commandBuffers != NULL);
     assert(size > 0);
     
@@ -50,7 +50,7 @@ void Renderer::createCommandBuffers(ring<VkCommandBuffer>* commandBuffers, u32 s
     VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, commandBuffers->data()));
 }
 
-void Renderer::createSyncObjects() {
+void Lumal::Renderer::createSyncObjects() {
     imageAvailableSemaphores.allocate (settings.fif);
     renderFinishedSemaphores.allocate (settings.fif);
     frameInFlightFences.allocate (settings.fif);
@@ -83,7 +83,7 @@ vector<char> readFile(const char* filename) {
     return buffer;
 }
 
-VkShaderModule Renderer::createShaderModule (vector<char>* code) {
+VkShaderModule Lumal::Renderer::createShaderModule (vector<char>* code) {
     assert(code != NULL);
     assert(!code->empty());
     
@@ -97,7 +97,7 @@ VkShaderModule Renderer::createShaderModule (vector<char>* code) {
     return shaderModule;
 }
 
-VkAttachmentLoadOp  Renderer::getOpLoad (LoadStoreOp op){
+VkAttachmentLoadOp  Lumal::Renderer::getOpLoad (LoadStoreOp op){
     switch (op) {
         case DontCare:
             return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -109,7 +109,7 @@ VkAttachmentLoadOp  Renderer::getOpLoad (LoadStoreOp op){
             crash(wrong load op);
     }
 }
-VkAttachmentStoreOp Renderer::getOpStore(LoadStoreOp op){
+VkAttachmentStoreOp Lumal::Renderer::getOpStore(LoadStoreOp op){
     switch (op) {
         case DontCare:
             return VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -121,17 +121,17 @@ VkAttachmentStoreOp Renderer::getOpStore(LoadStoreOp op){
           crash(wrong load op);
     }
 }
-void Renderer::destroyRenderPass(RenderPass* rpass){
+void Lumal::Renderer::destroyRenderPass(RenderPass* rpass){
     for (auto framebuffer : rpass->framebuffers) {
         vkDestroyFramebuffer (device, framebuffer, NULL);
     }
     vkDestroyRenderPass(device, rpass->rpass, NULL);
     *rpass = {};
 }
-void Renderer::deviceWaitIdle(){
+void Lumal::Renderer::deviceWaitIdle(){
     vkDeviceWaitIdle(device);
 }
-void Renderer::createRenderPass(vector<AttachmentDescription> attachments, vector<SubpassAttachments> spassAttachs, RenderPass* rpass){
+void Lumal::Renderer::createRenderPass(vector<AttachmentDescription> attachments, vector<SubpassAttachments> spassAttachs, RenderPass* rpass){
     assert(rpass != NULL);
     assert(!attachments.empty());
     assert(!spassAttachs.empty());
@@ -264,7 +264,7 @@ void Renderer::createRenderPass(vector<AttachmentDescription> attachments, vecto
     createFramebuffers(&rpass->framebuffers, fb_images, rpass->rpass, rpass->extent);
 } 
 
-void Renderer::destroyRasterPipeline (RasterPipe* pipe) {
+void Lumal::Renderer::destroyRasterPipeline (RasterPipe* pipe) {
     assert(pipe != NULL);
     vkDestroyPipeline (device, pipe->line, NULL);
     vkDestroyPipelineLayout (device, pipe->lineLayout, NULL);
@@ -283,7 +283,7 @@ static bool stencil_is_empty (VkStencilOpState stencil) {
         (stencil.reference == 0);
 }
 
-void Renderer::createRasterPipeline (RasterPipe* pipe, VkDescriptorSetLayout extra_dynamic_layout, vector<ShaderStage> shader_stages, vector<AttrFormOffs> attr_desc,
+void Lumal::Renderer::createRasterPipeline (RasterPipe* pipe, VkDescriptorSetLayout extra_dynamic_layout, vector<ShaderStage> shader_stages, vector<AttrFormOffs> attr_desc,
                                      u32 stride, VkVertexInputRate input_rate, VkPrimitiveTopology topology,
                                      VkExtent2D extent, vector<BlendAttachment> blends, u32 push_size, DepthTesting depthTest, VkCompareOp depthCompareOp, VkCullModeFlags culling, Discard discard, const VkStencilOpState stencil) {
     assert(pipe != NULL);
@@ -499,7 +499,7 @@ void Renderer::createRasterPipeline (RasterPipe* pipe, VkDescriptorSetLayout ext
     }
 }
 
-void Renderer::destroyComputePipeline (ComputePipe* pipe) {
+void Lumal::Renderer::destroyComputePipeline (ComputePipe* pipe) {
     assert(pipe != NULL);
     vkDestroyPipeline (device, pipe->line, NULL);
     vkDestroyPipelineLayout (device, pipe->lineLayout, NULL);
@@ -507,7 +507,7 @@ void Renderer::destroyComputePipeline (ComputePipe* pipe) {
     *pipe = {};
 }
 
-void Renderer::createComputePipeline (ComputePipe* pipe, VkDescriptorSetLayout extra_dynamic_layout, const char* src, u32 push_size, VkPipelineCreateFlags create_flags) {
+void Lumal::Renderer::createComputePipeline (ComputePipe* pipe, VkDescriptorSetLayout extra_dynamic_layout, const char* src, u32 push_size, VkPipelineCreateFlags create_flags) {
     assert(pipe != NULL);
     assert(src != NULL);
     
@@ -547,12 +547,12 @@ void Renderer::createComputePipeline (ComputePipe* pipe, VkDescriptorSetLayout e
     vkDestroyShaderModule (device, module, NULL);
 }
 
-void Renderer::createSurface() {
+void Lumal::Renderer::createSurface() {
     VK_CHECK (glfwCreateWindowSurface (instance, window.pointer, NULL, &surface));
     assert(surface != VK_NULL_HANDLE);
 }
 
-QueueFamilyIndices Renderer::findQueueFamilies (VkPhysicalDevice device) {
+Lumal::QueueFamilyIndices Lumal::Renderer::findQueueFamilies (VkPhysicalDevice device) {
     QueueFamilyIndices indices;
     u32 queueFamilyCount = 0;
     vkGetPhysicalDeviceQueueFamilyProperties (device, &queueFamilyCount, NULL);
@@ -578,7 +578,7 @@ QueueFamilyIndices Renderer::findQueueFamilies (VkPhysicalDevice device) {
     return indices;
 }
 
-bool Renderer::checkPhysicalDeviceExtensionSupport (VkPhysicalDevice device) {
+bool Lumal::Renderer::checkPhysicalDeviceExtensionSupport (VkPhysicalDevice device) {
     u32 extensionCount;
     vkEnumerateDeviceExtensionProperties (device, NULL, &extensionCount, NULL);
     vector<VkExtensionProperties> availableExtensions (extensionCount);
@@ -601,7 +601,7 @@ bool Renderer::checkPhysicalDeviceExtensionSupport (VkPhysicalDevice device) {
     return true;
 }
 
-SwapChainSupportDetails Renderer::querySwapchainSupport (VkPhysicalDevice device) {
+Lumal::SwapChainSupportDetails Lumal::Renderer::querySwapchainSupport (VkPhysicalDevice device) {
     SwapChainSupportDetails details;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR (device, surface, &details.capabilities);
     u32 formatCount;
@@ -615,13 +615,13 @@ SwapChainSupportDetails Renderer::querySwapchainSupport (VkPhysicalDevice device
     return details;
 }
 
-bool Renderer::checkFormatSupport (VkPhysicalDevice device, VkFormat format, VkFormatFeatureFlags features) {
+bool Lumal::Renderer::checkFormatSupport (VkPhysicalDevice device, VkFormat format, VkFormatFeatureFlags features) {
     VkFormatProperties formatProps;
     vkGetPhysicalDeviceFormatProperties (device, format, &formatProps);
     return formatProps.optimalTilingFeatures& features;
 }
 
-bool Renderer::isPhysicalDeviceSuitable (VkPhysicalDevice device) {
+bool Lumal::Renderer::isPhysicalDeviceSuitable (VkPhysicalDevice device) {
     QueueFamilyIndices indices = findQueueFamilies (device);
     SwapChainSupportDetails swapChainSupport;
     bool extensionsSupported = checkPhysicalDeviceExtensionSupport (device);
@@ -645,7 +645,7 @@ bool Renderer::isPhysicalDeviceSuitable (VkPhysicalDevice device) {
            ;
 }
 
-void Renderer::pickPhysicalDevice() {
+void Lumal::Renderer::pickPhysicalDevice() {
     u32 deviceCount;
     VK_CHECK (vkEnumeratePhysicalDevices (instance, &deviceCount, NULL));
     assert(deviceCount > 0);
@@ -668,7 +668,7 @@ void Renderer::pickPhysicalDevice() {
     vkGetPhysicalDeviceFeatures (physicalDevice, &physicalDeviceFeatures);
 }
 
-void Renderer::createLogicalDevice() {
+void Lumal::Renderer::createLogicalDevice() {
     QueueFamilyIndices indices = findQueueFamilies (physicalDevice);
     assert(indices.graphicalAndCompute.has_value() && indices.present.has_value());
 
@@ -700,7 +700,7 @@ void Renderer::createLogicalDevice() {
     vkGetDeviceQueue (device, indices.present.value(), 0, &presentQueue);
 }
 
-VkSurfaceFormatKHR Renderer::chooseSwapSurfaceFormat (vector<VkSurfaceFormatKHR> availableFormats) {
+VkSurfaceFormatKHR Lumal::Renderer::chooseSwapSurfaceFormat (vector<VkSurfaceFormatKHR> availableFormats) {
     assert(!availableFormats.empty());
     for (auto format : availableFormats) {
         if (format.format == VK_FORMAT_B8G8R8A8_UNORM && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
@@ -714,7 +714,7 @@ VkSurfaceFormatKHR Renderer::chooseSwapSurfaceFormat (vector<VkSurfaceFormatKHR>
     return availableFormats[0];
 }
 
-VkPresentModeKHR Renderer::chooseSwapPresentMode (vector<VkPresentModeKHR> availablePresentModes) {
+VkPresentModeKHR Lumal::Renderer::chooseSwapPresentMode (vector<VkPresentModeKHR> availablePresentModes) {
     assert(!availablePresentModes.empty());
     
     for (auto mode : availablePresentModes) {
@@ -731,7 +731,7 @@ VkPresentModeKHR Renderer::chooseSwapPresentMode (vector<VkPresentModeKHR> avail
     return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-VkExtent2D Renderer::chooseSwapExtent (VkSurfaceCapabilitiesKHR capabilities) {
+VkExtent2D Lumal::Renderer::chooseSwapExtent (VkSurfaceCapabilitiesKHR capabilities) {
     if (capabilities.currentExtent.width != UINT_MAX) {
         return capabilities.currentExtent;
     } else {
@@ -744,7 +744,7 @@ VkExtent2D Renderer::chooseSwapExtent (VkSurfaceCapabilitiesKHR capabilities) {
     }
 }
 
-void Renderer::createAllocator() {
+void Lumal::Renderer::createAllocator() {
     VmaVulkanFunctions 
         vulkanFunctions;
         vulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
@@ -802,7 +802,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback (
 // // vkDebugMarkerSetObjectNameEXT(VkDevice device, const VkDebugMarkerObjectNameInfoEXT *pNameInfo)
 // }
 // #ifndef VKNDEBUG
-void Renderer::setupDebugMessenger() {
+void Lumal::Renderer::setupDebugMessenger() {
     VkDebugUtilsMessengerEXT debugMessenger;
     VkDebugUtilsMessengerCreateInfoEXT 
         debugUtilsCreateInfo = {};
@@ -815,7 +815,7 @@ void Renderer::setupDebugMessenger() {
 }
 // #endif
 
-void Renderer::getInstanceLayers() {
+void Lumal::Renderer::getInstanceLayers() {
     uint32_t layerCount;
     vkEnumerateInstanceLayerProperties(&layerCount, NULL);
     vector<VkLayerProperties> availableLayers(layerCount);
@@ -831,7 +831,7 @@ void Renderer::getInstanceLayers() {
         }
     }
 }
-void Renderer::getInstanceExtensions() {
+void Lumal::Renderer::getInstanceExtensions() {
     u32 glfwExtCount = 0;
     const char** glfwExtensions = glfwGetRequiredInstanceExtensions (&glfwExtCount);
     assert (glfwExtensions != NULL);
@@ -862,11 +862,11 @@ void Renderer::getInstanceExtensions() {
 }
 
 static void framebuffer_Resize_Callback (GLFWwindow* window, int width, int height) {
-    auto app = (Renderer*) (glfwGetWindowUserPointer (window));
+    auto app = (Lumal::Renderer*) (glfwGetWindowUserPointer (window));
     app->resized = true;
 }
 
-void Renderer::createWindow() {
+void Lumal::Renderer::createWindow() {
     int glfwRes = glfwInit();
     assert (glfwRes != 0);
     glfwWindowHint (GLFW_CLIENT_API, GLFW_NO_API);
@@ -887,7 +887,7 @@ void Renderer::createWindow() {
     glfwSetFramebufferSizeCallback (window.pointer, framebuffer_Resize_Callback);
 }
 
-void Renderer::createInstance() {
+void Lumal::Renderer::createInstance() {
     VkApplicationInfo 
         app_info = {};
         app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -918,7 +918,7 @@ void Renderer::createInstance() {
     VK_CHECK (vkCreateInstance (&createInfo, NULL, &instance));
 }
 
-void Renderer::createImageStorages (ring<Image>* images,
+void Lumal::Renderer::createImageStorages (ring<Image>* images,
                                       VkImageType type, VkFormat format, VkImageUsageFlags usage, VmaMemoryUsage vma_usage, VmaAllocationCreateFlags vma_flags, VkImageAspectFlags aspect,
                                       VkExtent3D extent, int mipmaps, VkSampleCountFlagBits sample_count) {
     (*images).allocate (settings.fif);
@@ -927,7 +927,7 @@ void Renderer::createImageStorages (ring<Image>* images,
     }
 }
 
-void Renderer::createImageStorages (Image* image,
+void Lumal::Renderer::createImageStorages (Image* image,
                                       VkImageType type, VkFormat format, VkImageUsageFlags usage, VmaMemoryUsage vma_usage, VmaAllocationCreateFlags vma_flags, VkImageAspectFlags aspect,
                                       VkExtent3D extent, int mipmaps, VkSampleCountFlagBits sample_count) {
     // VkFormat chosen_format = findSupportedFormat(format, type, VK_IMAGE_TILING_OPTIMAL, usage);
@@ -1008,7 +1008,7 @@ void Renderer::createImageStorages (Image* image,
 }
 
 //fill manually with cmd or copy
-void Renderer::createBufferStorages (ring<Buffer>* buffers, VkBufferUsageFlags usage, u32 size, bool host) {
+void Lumal::Renderer::createBufferStorages (ring<Buffer>* buffers, VkBufferUsageFlags usage, u32 size, bool host) {
     (*buffers).allocate (settings.fif);
     // allocs.resize(MAX_FRAMES_IN_FLIGHT);
     for (i32 i = 0; i < settings.fif; i++) {
@@ -1027,7 +1027,7 @@ void Renderer::createBufferStorages (ring<Buffer>* buffers, VkBufferUsageFlags u
     }
 }
 
-void Renderer::createBufferStorages (Buffer* buffer, VkBufferUsageFlags usage, u32 size, bool host) {
+void Lumal::Renderer::createBufferStorages (Buffer* buffer, VkBufferUsageFlags usage, u32 size, bool host) {
     VkBufferCreateInfo 
         bufferInfo = {};
         bufferInfo.size = size;
@@ -1042,19 +1042,19 @@ void Renderer::createBufferStorages (Buffer* buffer, VkBufferUsageFlags usage, u
     allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
     VK_CHECK (vmaCreateBuffer (VMAllocator, &bufferInfo, &allocInfo, & (*buffer).buffer, & (*buffer).alloc, NULL));
 }
-void Renderer::mapBufferStorages(ring<Buffer>* buffers){
+void Lumal::Renderer::mapBufferStorages(ring<Buffer>* buffers){
     for(Buffer& b : *buffers){
         mapBufferStorages(&b);
     }
 }
-void Renderer::mapBufferStorages(Buffer* buffer){
+void Lumal::Renderer::mapBufferStorages(Buffer* buffer){
     vmaMapMemory(VMAllocator, buffer->alloc, &buffer->mapped);
 }
 #define MAKE_DESCRIPTOR_TYPE(name)\
     case name:\
         descriptorCounter.name##_COUNTER += settings.fif;\
         break;
-void Renderer::countDescriptor (const VkDescriptorType type) {
+void Lumal::Renderer::countDescriptor (const VkDescriptorType type) {
     switch (type) {
         #include "defines/descriptor_types.hpp"
         default:
@@ -1064,7 +1064,7 @@ void Renderer::countDescriptor (const VkDescriptorType type) {
 }
 #undef MAKE_DESCRIPTOR_TYPE
 
-void Renderer::createDescriptorSetLayout (vector<ShortDescriptorInfo> descriptorInfos, VkDescriptorSetLayout* layout, VkDescriptorSetLayoutCreateFlags flags) {
+void Lumal::Renderer::createDescriptorSetLayout (vector<ShortDescriptorInfo> descriptorInfos, VkDescriptorSetLayout* layout, VkDescriptorSetLayoutCreateFlags flags) {
     vector<VkDescriptorSetLayoutBinding> bindings = {};
     for (i32 i = 0; i < descriptorInfos.size(); i++) {
         countDescriptor (descriptorInfos[i].type);
@@ -1093,7 +1093,7 @@ void Renderer::createDescriptorSetLayout (vector<ShortDescriptorInfo> descriptor
             PoolSize.descriptorCount = descriptorCounter.name##_COUNTER;\
         pull_sizes.push_back(PoolSize);\
     }
-void Renderer::createDescriptorPool() {
+void Lumal::Renderer::createDescriptorPool() {
     vector<VkDescriptorPoolSize> pull_sizes = {};
     #include "defines/descriptor_types.hpp"
     VkDescriptorPoolCreateInfo 
@@ -1117,10 +1117,10 @@ static void allocate_Descriptor (ring<VkDescriptorSet>& sets, VkDescriptorSetLay
     VK_CHECK (vkAllocateDescriptorSets (device, &allocInfo, sets.data()));
 }
 
-void Renderer::resetDescriptorSetup () {
+void Lumal::Renderer::resetDescriptorSetup () {
     delayed_descriptor_setups.clear();
 }
-void Renderer::deferDescriptorSetup (VkDescriptorSetLayout* dsetLayout, ring<VkDescriptorSet>* descriptorSets, vector<DescriptorInfo> descriptions, VkShaderStageFlags baseStages, VkDescriptorSetLayoutCreateFlags createFlags) {
+void Lumal::Renderer::deferDescriptorSetup (VkDescriptorSetLayout* dsetLayout, ring<VkDescriptorSet>* descriptorSets, vector<DescriptorInfo> descriptions, VkShaderStageFlags baseStages, VkDescriptorSetLayoutCreateFlags createFlags) {
     DEBUG_LOG(*dsetLayout)
     if (*dsetLayout == VK_NULL_HANDLE) {
         vector<ShortDescriptorInfo> descriptorInfos (descriptions.size());
@@ -1135,7 +1135,7 @@ void Renderer::deferDescriptorSetup (VkDescriptorSetLayout* dsetLayout, ring<VkD
     delayed_descriptor_setups.push_back (delayed_setup);
 }
 
-void Renderer::setupDescriptor (VkDescriptorSetLayout* dsetLayout, ring<VkDescriptorSet>* descriptorSets, vector<DescriptorInfo> descriptions, VkShaderStageFlags stages) {
+void Lumal::Renderer::setupDescriptor (VkDescriptorSetLayout* dsetLayout, ring<VkDescriptorSet>* descriptorSets, vector<DescriptorInfo> descriptions, VkShaderStageFlags stages) {
     for (int frame_i = 0; frame_i < (*descriptorSets).size(); frame_i++) {
         int previous_frame_i = frame_i - 1;
         if (previous_frame_i < 0) { previous_frame_i = settings.fif - 1; } // so frames do not intersect
@@ -1191,7 +1191,7 @@ void Renderer::setupDescriptor (VkDescriptorSetLayout* dsetLayout, ring<VkDescri
     }
 }
 
-void Renderer::flushDescriptorSetup() {
+void Lumal::Renderer::flushDescriptorSetup() {
 TRACE();
     createDescriptorPool();
 TRACE();
@@ -1209,6 +1209,6 @@ TRACE();
 TRACE();
 }
 
-void Renderer::debugValidate(){
+void Lumal::Renderer::debugValidate(){
     // assert()
 }

@@ -37,6 +37,7 @@ using glm::dvec2,glm::dvec3,glm::dvec4;
 using glm::mat, glm::mat2, glm::mat3, glm::mat4;
 using glm::dmat2, glm::dmat3, glm::dmat4;
 
+namespace Lumal {
 typedef struct Buffer {
     VkBuffer buffer;
     VmaAllocation alloc;
@@ -321,22 +322,16 @@ public:
         void present();
     void end_frame(vector<VkCommandBuffer> commandBuffers);
 
-    void cmdBindVertexBuffers(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount, const VkBuffer* pBuffers, const VkDeviceSize* pOffsets){
-        vkCmdBindVertexBuffers(commandBuffer, firstBinding, bindingCount, pBuffers, pOffsets);
-    }
-    void cmdBindIndexBuffer(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkIndexType indexType){
-        vkCmdBindIndexBuffer(commandBuffer, buffer, offset, indexType);
-    }
-    void cmdBindDescriptorSets(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t firstSet, uint32_t descriptorSetCount, const VkDescriptorSet* pDescriptorSets, uint32_t dynamicOffsetCount, const uint32_t* pDynamicOffsets){
-        vkCmdBindDescriptorSets(commandBuffer, pipelineBindPoint, layout, firstSet, descriptorSetCount, pDescriptorSets, dynamicOffsetCount, pDynamicOffsets);
-    }
+    void cmdBindVertexBuffers(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount, const VkBuffer* pBuffers, const VkDeviceSize* pOffsets);
+    void cmdBindIndexBuffer(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkIndexType indexType);
+    void cmdBindDescriptorSets(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t firstSet, uint32_t descriptorSetCount, const VkDescriptorSet* pDescriptorSets, uint32_t dynamicOffsetCount, const uint32_t* pDynamicOffsets);
     void cmdDraw(VkCommandBuffer commandBuffer, u32 vertexCount, u32 instanceCount, u32 firstVertex, u32 firstInstance);
     void cmdDispatch(VkCommandBuffer commandBuffer, u32 groupCountX, u32 groupCountY, u32 groupCountZ);
     void cmdBeginRenderPass (VkCommandBuffer commandBuffer, RenderPass* rpass);
     void cmdNextSubpass (VkCommandBuffer commandBuffer, RenderPass* rpass);
     void cmdEndRenderPass (VkCommandBuffer commandBuffer, RenderPass* rpass);
-    void cmdBindPipe (VkCommandBuffer commandBuffer, RasterPipe pipe);
-    void cmdBindPipe (VkCommandBuffer commandBuffer, ComputePipe pipe);
+    void cmdBindPipe (VkCommandBuffer commandBuffer, RasterPipe* pipe);
+    void cmdBindPipe (VkCommandBuffer commandBuffer, ComputePipe* pipe);
     void cmdPipelineBarrier (VkCommandBuffer commandBuffer,
                              VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask,
                              VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
@@ -591,6 +586,11 @@ public:
     vector<const char*> timestampNames = {0};
 
     void* pNext; //to allow easy expansion
+
+// private:
+    VkPipeline CACHED_BOUND_PIPELINE = VK_NULL_HANDLE;
+    VkBuffer CACHED_BOUND_VERTEX_BUFFER = VK_NULL_HANDLE;
+    VkBuffer CACHED_BOUND_INDEX_BUFFER = VK_NULL_HANDLE;
 };
 
 template<class Elem_T> ring<Buffer> Renderer::createElemBuffers (Elem_T* elements, u32 count, u32 buffer_usage) {
@@ -665,4 +665,5 @@ template<class Elem_T> Buffer Renderer::createElemBuffer (Elem_T* elements, u32 
     // }
     vmaDestroyBuffer (VMAllocator, stagingBuffer, stagingAllocation);
     return elems;
+}
 }

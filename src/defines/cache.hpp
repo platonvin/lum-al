@@ -1,10 +1,13 @@
+#pragma once
+#ifndef __CACHE_HPP__
+#define __CACHE_HPP__
+
 #include "volk.h" //idk why but it is neither shipped with Linux Vulkan SDK nor bundled in vcpkg vulkan-sdk-components
 #include <functional>
 #include <vector>
 
 
 // can be template like this
-
 // template<typename ResourceType>
 // class CachedResource {
 //     ResourceType old_resource = nullptr; // Vulkan VK_NULL_HANDLE is nullptr
@@ -36,3 +39,5 @@
         /*nothing*/                                                                \
     }                                                                              \
 } while(0);
+
+#endif // __CACHE_HPP__
