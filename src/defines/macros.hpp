@@ -26,7 +26,7 @@
 #define STRINGIZE2(x) #x
 #define __LINE_STRING__ STRINGIZE(__LINE__)
 
-#define crash(string) do {printf(KRED "l:%d %s\n" KEND, __LINE__, #string); exit(69);} while(0)
+#define crash(string) do {printf(KRED "%s:%d: Fun: %s -- %s\n" KEND, __FILE__, __LINE__, __FUNCTION__, #string); exit(69);} while(0)
 
 // #define NDEBUG
 #ifdef NDEBUG
