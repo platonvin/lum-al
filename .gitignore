@@ -7,3 +7,4 @@ obj
 lib
 # precompiled headers
 *.gch
+/build

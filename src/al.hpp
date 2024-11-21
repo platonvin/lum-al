@@ -12,8 +12,8 @@
 #include <glm/ext/vector_bool1.hpp>
 #include "glm/gtc/type_precision.hpp"
 
-#include <volk.h>
-#include <vk_mem_alloc.h>
+#include <volk/volk.h>
+#include <vma/vk_mem_alloc.h>
 #include <GLFW/glfw3.h>
 #include "ringbuffer.hpp"
 

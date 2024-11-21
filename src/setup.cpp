@@ -1,3 +1,4 @@
+#define VOLK_IMPLEMENTATION
 #include "al.hpp"
 #include "defines/macros.hpp"
 #include <cstring>
@@ -867,7 +868,14 @@ static void framebuffer_Resize_Callback (GLFWwindow* window, int width, int heig
     app->resized = true;
 }
 
+
+void error_callback(int code, const char* description){
+    LOG(code);
+    LOG(description);
+}
+
 void Lumal::Renderer::createWindow() {
+    glfwSetErrorCallback(error_callback);
     int glfwRes = glfwInit();
     assert (glfwRes != 0);
     glfwWindowHint (GLFW_CLIENT_API, GLFW_NO_API);
