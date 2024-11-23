@@ -1,4 +1,4 @@
-#define VOLK_IMPLEMENTATION
+// #define VOLK_IMPLEMENTATION
 #include "al.hpp"
 #include "defines/macros.hpp"
 #include <cstring>
@@ -6,6 +6,7 @@
 #include <set>
 #include <fstream>
 #include <climits>
+// #undef VOLK_IMPLEMENTATION
 
 // using namespace std;
 using glm::u8, glm::u16, glm::u16, glm::u32;

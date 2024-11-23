@@ -11,7 +11,7 @@ array with built-in index_counter that increments on move() and wraps around siz
 template <typename _Type>
 class ring {
 public:
-    ring(size_t initialSize) {
+    ring(int initialSize) {
         assert(initialSize > 0);
         buffer = new _Type[initialSize];
         size_ = initialSize;
@@ -38,7 +38,7 @@ public:
         return buffer;
     }
 
-    void allocate(size_t size) {
+    void allocate(int size) {
         assert(size > 0);
         if (buffer) {
             delete[] buffer;
@@ -49,14 +49,14 @@ public:
     }
 
     //basically for changing FIF count
-    void realloc(size_t newSize) {
+    void realloc(int newSize) {
         assert(newSize > 0);
         if (newSize == size_) return;
 
         _Type* newBuffer = new _Type[newSize];
-        size_t elementsToCopy = (newSize < size_) ? newSize : size_;
+        int elementsToCopy = (newSize < size_) ? newSize : size_;
 
-        for (size_t i = 0; i < elementsToCopy; ++i) {
+        for (int i = 0; i < elementsToCopy; ++i) {
             newBuffer[i] = buffer[i];
         }
 
@@ -69,11 +69,11 @@ public:
     }
 
     _Type& next() {
-        size_t nextIndex = (current_index + 1) % size_;
+        int nextIndex = (current_index + 1) % size_;
         return buffer[nextIndex];
     }
     _Type& previous() {
-        size_t previousIndex = ((size_ + current_index) - 1) % size_;
+        int previousIndex = ((size_ + current_index) - 1) % size_;
         return buffer[previousIndex];
     }
     _Type& current() {
@@ -86,7 +86,7 @@ public:
         current_index = (current_index + 1) % size_;
     }
 
-    size_t size() {return size_;}
+    int size() {return size_;}
 
     bool empty(){
         return size_ == 0;
@@ -122,7 +122,7 @@ public:
         }
         return *this;
     }
-    _Type& operator[](size_t index) {
+    _Type& operator[](int index) {
         assert(index < size_);
         return buffer[index];
     }
@@ -159,6 +159,6 @@ public:
     
 private:
     _Type* buffer = NULL;
-    size_t size_ = 0;
-    size_t current_index = 0;
+    int size_ = 0;
+    int current_index = 0;
 };

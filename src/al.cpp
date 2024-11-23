@@ -5,6 +5,7 @@
 #include "defines/macros.hpp" //after al.hpp
 #include "ringbuffer.hpp"
 #include "defines/cache.hpp"
+#undef VMA_IMPLEMENTATION
 
 using std::vector;
 

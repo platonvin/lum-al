@@ -6,9 +6,6 @@
 #include <unordered_map>
 #include <functional>
 #define GLM_ENABLE_EXPERIMENTAL
-// #include <glm/glm.hpp>
-// #include <glm/gtx/quaternion.hpp>
-// #include <glm/ext/matrix_transform.hpp>
 #include <glm/ext/vector_bool1.hpp>
 #include "glm/gtc/type_precision.hpp"
 
