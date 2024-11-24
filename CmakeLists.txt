@@ -10,25 +10,47 @@ set(CMAKE_COLOR_DIAGNOSTICS ON)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 # Source files for lumal
-file(GLOB_RECURSE LUM_AL_SOURCES
+file(GLOB_RECURSE LUMAL_SOURCES
     src/*.cpp
     src/*.c
+    external/volk/volk.c
 )
+set(LUMAL_SOURCES ${LUMAL_SOURCES} CACHE INTERNAL "Lum-al sources")
+
+# glfw - library for windowing
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/external/glfw)
+    add_subdirectory(external/glfw)
+else()
+    message(FATAL_ERROR "GLFW directory not found.")
+endif()
+
+# glslang - glsl to spirv compiler
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/external/glslang)
+    set(ENABLE_GLSLANG_BINARIES ON CACHE BOOL "Enable building GLSL binaries")
+    add_subdirectory(external/glslang ${CMAKE_BINARY_DIR}/glslang_build)
+    # set_target_properties(glslangValidator PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+else()
+    message(FATAL_ERROR "GLSL directory not found.")
+endif()
 
 # Create lum-al library
-add_library(lumal STATIC ${LUM_AL_SOURCES})
-add_subdirectory(external/glfw)
-target_link_libraries(lumal PRIVATE glfw)
+add_library(lumal ${LUMAL_SOURCES})
 
-# Include directories
+# Include directories for lumal (used by downstream projects)
 target_include_directories(lumal PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/defines
-    ${CMAKE_CURRENT_SOURCE_DIR}/external
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/glfw/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src           # Just sources
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/defines   # Internal macros
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/glm  # For <glm/glm.hpp>
+    ${CMAKE_CURRENT_SOURCE_DIR}/external      # For volk/vma/vulkan
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/glfw/include # GLFW
 )
+    
+# Allow downstream projects to specify glfw (and other dependencies) externally
+target_link_libraries(lumal PUBLIC glfw)
 
-# Optional hello triangle example
+# Install ?
+
+# Optional hello triangle example (can be disabled)
 option(LUM_AL_BUILD_EXAMPLES "Build lumal examples" ON)
 
 if(LUM_AL_BUILD_EXAMPLES)

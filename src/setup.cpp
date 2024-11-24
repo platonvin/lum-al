@@ -1,4 +1,4 @@
-#define VOLK_IMPLEMENTATION
+// #define VOLK_IMPLEMENTATION // moved to separate file
 #include "al.hpp"
 #include "defines/macros.hpp"
 #include <cstring>

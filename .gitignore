@@ -8,3 +8,4 @@ lib
 # precompiled headers
 *.gch
 /build
+.cache
