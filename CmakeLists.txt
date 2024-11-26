@@ -33,49 +33,20 @@ else()
     message(FATAL_ERROR "GLSL directory not found.")
 endif()
 
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
-
-if(NOT Python3_FOUND)
-    message(FATAL_ERROR "Python3 interpreter not found. Required to update glslang sources.")
-endif()
-
-# Paths for GLSLang
-set(GLSLANG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/glslang)
-set(SCRIPT ${GLSLANG_DIR}/update_glslang_sources.py)
-set(STAMP_FILE ${CMAKE_BINARY_DIR}/glslang_sources_updated.stamp)
-
-# Custom command to run the script
-add_custom_command(
-    OUTPUT ${STAMP_FILE}
-    COMMAND ${CMAKE_COMMAND} -E echo "Running update_glslang_sources.py"
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${GLSLANG_DIR}/External
-    COMMAND ${Python3_EXECUTABLE} ${SCRIPT}
-    COMMAND ${CMAKE_COMMAND} -E touch ${STAMP_FILE}
-    WORKING_DIRECTORY ${GLSLANG_DIR}
-    COMMENT "Updating GLSLang sources..."
-    VERBATIM
-)
-
-# Custom target for GLSLang source update
-add_custom_target(glslang_update DEPENDS ${STAMP_FILE})
-
 # Create lum-al library
-add_library(lumal_static STATIC ${LUMAL_SOURCES})
-
-# Ensure glslangValidator and GLSLang source update
-add_dependencies(lumal_static glslang_update glslang)
+add_library(lumal ${LUMAL_SOURCES})
 
 # Include directories for lumal (used by downstream projects)
-target_include_directories(lumal_static PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/src         # Just sources
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/defines # Internal macros
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/glm/ # For <glm/glm.hpp>
+target_include_directories(lumal PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src           # Just sources
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/defines   # Internal macros
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/glm  # For <glm/glm.hpp>
     ${CMAKE_CURRENT_SOURCE_DIR}/external      # For volk/vma/vulkan
     ${CMAKE_CURRENT_SOURCE_DIR}/external/glfw/include # GLFW
 )
     
 # Allow downstream projects to specify glfw (and other dependencies) externally
-target_link_libraries(lumal_static PUBLIC glfw)
+target_link_libraries(lumal PUBLIC glfw)
 
 # Install ?
 
