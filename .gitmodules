@@ -6,13 +6,4 @@
 	url = https://github.com/g-truc/glm
 [submodule "external/glslang"]
 	path = external/glslang
-	url = https://github.com/KhronosGroup/glslang.git
-[submodule "external/glslang/External/spirv-tools"]
-	path = external/glslang/External/spirv-tools
-	url = https://github.com/KhronosGroup/SPIRV-tools.git
-[submodule "external/glslang/External/spirv-tools/external/spirv-headers"]
-	path = external/glslang/External/spirv-tools/external/spirv-headers
-	url = https://github.com/KhronosGroup/SPIRV-Headers.git
-[submodule "external/glslang/External/googletest"]
-	path = external/glslang/External/googletest
-	url = https://github.com/google/googletest.git
+	url = https://github.com/platonvin/glslang.git
