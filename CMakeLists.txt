@@ -25,9 +25,9 @@ else()
 endif()
 
 # glslang - glsl to spirv compiler
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/external/glslang)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/external/glsl)
     set(ENABLE_GLSLANG_BINARIES ON CACHE BOOL "Enable building GLSL binaries")
-    add_subdirectory(external/glslang ${CMAKE_BINARY_DIR}/glslang_build)
+    add_subdirectory(external/glsl ${CMAKE_BINARY_DIR}/glslang_build)
     # set_target_properties(glslangValidator PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 else()
     message(FATAL_ERROR "GLSL directory not found.")
