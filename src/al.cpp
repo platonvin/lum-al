@@ -1,4 +1,3 @@
-#include <numeric>
 #define VMA_IMPLEMENTATION
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #include "al.hpp"
@@ -6,6 +5,7 @@
 #include "ringbuffer.hpp"
 #include "defines/cache.hpp"
 #undef VMA_IMPLEMENTATION
+#include <numeric>
 
 using std::vector;
 
