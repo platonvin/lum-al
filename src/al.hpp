@@ -109,11 +109,11 @@ typedef struct RasterPipe {
     i32 subpassId;
 } RasterPipe;
 typedef struct ComputePipe {
-    VkPipeline line;
-    VkPipelineLayout lineLayout;
+    VkPipeline line = 0;
+    VkPipelineLayout lineLayout = 0;
 
-    ring<VkDescriptorSet> sets;
-    VkDescriptorSetLayout setLayout;
+    ring<VkDescriptorSet> sets = {};
+    VkDescriptorSetLayout setLayout = {};
 } ComputePipe;
 
 typedef struct AttachmentDescription {
@@ -123,26 +123,26 @@ typedef struct AttachmentDescription {
     VkImageLayout finalLayout = VK_IMAGE_LAYOUT_GENERAL;
 }AttachmentDescription;
 typedef struct SubpassAttachments {
-    vector<RasterPipe*> pipes;
+    vector<RasterPipe*> pipes = {};
     // vector<Image*> a_input;
-    vector<ring<Image>*> a_input;
+    vector<ring<Image>*> a_input = {};
     // vector<Image*> a_color;
-    vector<ring<Image>*> a_color;
+    vector<ring<Image>*> a_color = {};
     // Image* a_depth;
-    ring<Image>* a_depth;
+    ring<Image>* a_depth = {};
 }SubpassAttachments;
 typedef struct SubpassAttachmentRefs {
-    vector<VkAttachmentReference> a_input;
-    vector<VkAttachmentReference> a_color;
-    VkAttachmentReference a_depth;
+    vector<VkAttachmentReference> a_input = {};
+    vector<VkAttachmentReference> a_color = {};
+    VkAttachmentReference a_depth = {};
 }SubpassAttachmentRefs;
 
 typedef struct RenderPass {
-    vector<VkClearValue> clear_colors;
-    ring<VkFramebuffer> framebuffers;
+    vector<VkClearValue> clear_colors = {};
+    ring<VkFramebuffer> framebuffers = {};
 
-    VkExtent2D extent;
-    VkRenderPass rpass; 
+    VkExtent2D extent = {};
+    VkRenderPass rpass = 0; 
 } RenderPass;
 
 enum RelativeDescriptorPos {
@@ -155,28 +155,28 @@ enum RelativeDescriptorPos {
 #define NO_LAYOUT ((VkImageLayout)(0))
 
 typedef struct ShaderStage {
-    const char* src;
-    VkShaderStageFlagBits stage;
+    const char* src = 0;
+    VkShaderStageFlagBits stage = (VkShaderStageFlagBits)0;
 } ShaderStage;
 typedef struct DescriptorInfo {
-    VkDescriptorType type;
-    RelativeDescriptorPos relativePos;
+    VkDescriptorType type = VK_DESCRIPTOR_TYPE_SAMPLER;
+    RelativeDescriptorPos relativePos = RD_NONE;
     ring<Buffer>* buffers = nullptr;
     ring<Image>* images = nullptr;
-    VkSampler imageSampler;
-    VkImageLayout imageLayout; //ones that will be in use, not current
-    VkShaderStageFlags stages;
+    VkSampler imageSampler = 0;
+    VkImageLayout imageLayout = VK_IMAGE_LAYOUT_UNDEFINED; //ones that will be in use, not current
+    VkShaderStageFlags stages = 0;
 } DescriptorInfo;
 typedef struct ShortDescriptorInfo {
-    VkDescriptorType type;
-    VkShaderStageFlags stages;
+    VkDescriptorType type = VK_DESCRIPTOR_TYPE_SAMPLER;
+    VkShaderStageFlags stages = 0;
 } ShortDescriptorInfo;
 typedef struct DelayedDescriptorSetup {
-    VkDescriptorSetLayout* setLayout;
-    ring<VkDescriptorSet>* sets;
-    vector<DescriptorInfo> descriptions;
-    VkShaderStageFlags stages;
-    VkDescriptorSetLayoutCreateFlags createFlags;
+    VkDescriptorSetLayout* setLayout = 0;
+    ring<VkDescriptorSet>* sets = {};
+    vector<DescriptorInfo> descriptions = {};
+    VkShaderStageFlags stages = 0;
+    VkDescriptorSetLayoutCreateFlags createFlags = 0;
 } DelayedDescriptorSetup;
 
 #define MAKE_DESCRIPTOR_TYPE(name)\
@@ -406,8 +406,8 @@ public:
 
     class DescriptorSetupBuilder {
     private:
-        VkDescriptorSetLayout* dsetLayout;
-        ring<VkDescriptorSet>* descriptors;
+        VkDescriptorSetLayout* dsetLayout = {};
+        ring<VkDescriptorSet>* descriptors = {};
         vector<DescriptorInfo> descriptions = {};
         VkDescriptorSetLayoutCreateFlags createFlags = 0;
         Renderer& renderer;
@@ -529,40 +529,40 @@ public:
     void getInstanceLayers();
     void getInstanceExtensions();
     
-    DescriptorCounter descriptorCounter;
+    DescriptorCounter descriptorCounter = {};
     i32 descriptor_sets_count = 0;
     void countDescriptor (const VkDescriptorType type);
     void createDescriptorSetLayout (vector<ShortDescriptorInfo> shortDescriptorInfos, VkDescriptorSetLayout* layout, VkDescriptorSetLayoutCreateFlags flags = 0);
 
-    Window window;
-    VkInstance instance;
-    VkPhysicalDevice physicalDevice;
-    VkDevice device;
-    VkSurfaceKHR surface;
-    QueueFamilyIndices familyIndices;
-    VkQueue graphicsQueue;
-    VkQueue presentQueue;
-    VkCommandPool commandPool;
-    VkSwapchainKHR swapchain;
+    Window window = {};
+    VkInstance instance = {};
+    VkPhysicalDevice physicalDevice = {};
+    VkDevice device = {};
+    VkSurfaceKHR surface = {};
+    QueueFamilyIndices familyIndices = {};
+    VkQueue graphicsQueue = {};
+    VkQueue presentQueue = {};
+    VkCommandPool commandPool = {};
+    VkSwapchainKHR swapchain = {};
 
-    VkPhysicalDeviceProperties physicalDeviceProperties;
-    VkPhysicalDeviceFeatures physicalDeviceFeatures;
+    VkPhysicalDeviceProperties physicalDeviceProperties = {};
+    VkPhysicalDeviceFeatures physicalDeviceFeatures = {};
 
-    VkDescriptorPool descriptorPool;
-    VmaAllocator VMAllocator;
+    VkDescriptorPool descriptorPool = {};
+    VmaAllocator VMAllocator = {};
 
-    VkFormat swapChainImageFormat;
-    VkExtent2D swapChainExtent;
-    ring<Image> swapchainImages;
+    VkFormat swapChainImageFormat = {};
+    VkExtent2D swapChainExtent = {};
+    ring<Image> swapchainImages = {};
     u32 imageIndex = 0;
 
     //this are still managed by user, but are required to exist
-    ring<VkCommandBuffer>* extraCommandBuffers; //runtime copies. Also does first frame resources
-    ring<VkCommandBuffer>*  mainCommandBuffers;
+    ring<VkCommandBuffer>* extraCommandBuffers = {}; //runtime copies. Also does first frame resources
+    ring<VkCommandBuffer>*  mainCommandBuffers = {};
 
-    ring<VkSemaphore> imageAvailableSemaphores; //to sync presenting with renering  
-    ring<VkSemaphore> renderFinishedSemaphores; //to sync renering with presenting
-    ring<VkFence> frameInFlightFences;
+    ring<VkSemaphore> imageAvailableSemaphores = {}; //to sync presenting with renering  
+    ring<VkSemaphore> renderFinishedSemaphores = {}; //to sync renering with presenting
+    ring<VkFence> frameInFlightFences = {};
 
     //holds all the cpu-side VkSamplers 
     std::unordered_map<VkSamplerCreateInfo, VkSampler, VkSamplerCreateInfoHash, VkSamplerCreateInfoEqual> samplerMap;
@@ -582,7 +582,7 @@ public:
     vector<double> average_ftimestamps = {0};
     vector<const char*> timestampNames = {0};
 
-    void* pNext; //to allow easy expansion
+    void* pNext = 0; //to allow easy expansion
 
 // private:
     VkPipeline CACHED_BOUND_PIPELINE = VK_NULL_HANDLE;
