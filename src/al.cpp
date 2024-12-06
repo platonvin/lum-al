@@ -24,8 +24,6 @@ using glm::dvec2,glm::dvec3,glm::dvec4;
 using glm::mat2, glm::mat3, glm::mat4;
 using glm::dmat2, glm::dmat3, glm::dmat4;
 
-tuple<int, int> get_block_xy (int N);
-
 void Lumal::Renderer::init (Settings settings) {
     this->settings = settings;
     timestampCount = settings.timestampCount;
@@ -377,9 +375,11 @@ void Lumal::Renderer::present() {
 }
 
 void Lumal::Renderer::end_frame(vector<VkCommandBuffer> commandBuffers) {
+TRACE();
     for(auto cb : commandBuffers){
         vkEndCommandBuffer(cb);
     }
+TRACE();
     
     vector<VkSemaphore> signalSemaphores = {renderFinishedSemaphores.current()};
     vector<VkSemaphore> waitSemaphores = {imageAvailableSemaphores.current()};
@@ -397,10 +397,13 @@ void Lumal::Renderer::end_frame(vector<VkCommandBuffer> commandBuffers) {
         submitInfo.signalSemaphoreCount = signalSemaphores.size();
         submitInfo.pSignalSemaphores = signalSemaphores.data();
     VK_CHECK (vkQueueSubmit (graphicsQueue, 1, &submitInfo, frameInFlightFences.current()));
+TRACE();
 
     present();
 
+TRACE();
     if(settings.profile){
+TRACE();
         if (iFrame > 0) {
                 vkGetQueryPoolResults (
                     device,
@@ -411,7 +414,9 @@ void Lumal::Renderer::end_frame(vector<VkCommandBuffer> commandBuffers) {
                     currentTimestamp* sizeof (uint64_t),
                     timestamps.data(),
                     sizeof (uint64_t),
-                    VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+                    VK_QUERY_RESULT_64_BIT 
+                    // | VK_QUERY_RESULT_WAIT_BIT
+                    );
             }
         double timestampPeriod = physicalDeviceProperties.limits.timestampPeriod;
         for (int i = 0; i < timestampCount; i++) {
@@ -428,17 +433,23 @@ void Lumal::Renderer::end_frame(vector<VkCommandBuffer> commandBuffers) {
             }
         }
     }
+TRACE();
     currentFrame = (currentFrame + 1) % settings.fif;
     iFrame++;
     
+TRACE();
     imageAvailableSemaphores.move(); //to sync presenting with renering  
     renderFinishedSemaphores.move(); //to sync renering with presenting
     frameInFlightFences.move();
+TRACE();
     if(settings.profile){
+TRACE();
         queryPoolTimestamps.move();
     }
 
+TRACE();
     processDeletionQueues();
+TRACE();
 
     CACHED_BOUND_PIPELINE = VK_NULL_HANDLE;
     CACHED_BOUND_VERTEX_BUFFER = VK_NULL_HANDLE;
