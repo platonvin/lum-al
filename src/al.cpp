@@ -307,6 +307,7 @@ void Lumal::Renderer::processDeletionQueues() {
 // #include <glm/gtx/string_cast.hpp>
 void Lumal::Renderer::start_frame(vector<VkCommandBuffer> commandBuffers) {
     TRACE();
+    // vkWaitForFences (device, 1, &frameInFlightFences.previous(), VK_TRUE, UINT32_MAX);
     vkWaitForFences (device, 1, &frameInFlightFences.current(), VK_TRUE, UINT32_MAX);
     TRACE();
     vkResetFences (device, 1, &frameInFlightFences.current());
@@ -415,7 +416,7 @@ TRACE();
                     timestamps.data(),
                     sizeof (uint64_t),
                     VK_QUERY_RESULT_64_BIT 
-                    // | VK_QUERY_RESULT_WAIT_BIT
+                    // | VK_QUERY_RESULT_WAIT_BIT // TODO: this sometimes breaks syncronization - investigate why? 
                     );
             }
         double timestampPeriod = physicalDeviceProperties.limits.timestampPeriod;
@@ -425,7 +426,7 @@ TRACE();
         //for less fluctuation
         if (iFrame > 5) {
             for (int i = 0; i < timestampCount; i++) {
-                average_ftimestamps[i] = glm::mix (average_ftimestamps[i], ftimestamps[i], 1.0);
+                average_ftimestamps[i] = glm::mix (average_ftimestamps[i], ftimestamps[i], 0.07);
             }
         } else {
             for (int i = 0; i < timestampCount; i++) {
@@ -438,8 +439,8 @@ TRACE();
     iFrame++;
     
 TRACE();
-    imageAvailableSemaphores.move(); //to sync presenting with renering  
-    renderFinishedSemaphores.move(); //to sync renering with presenting
+    imageAvailableSemaphores.move(); // to sync presenting with rendering  
+    renderFinishedSemaphores.move(); // to sync rendering with presenting
     frameInFlightFences.move();
 TRACE();
     if(settings.profile){
