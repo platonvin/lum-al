@@ -145,11 +145,12 @@ typedef struct RenderPass {
     VkRenderPass rpass = 0; 
 } RenderPass;
 
+#define RDP Lumal::RelativeDescriptorPos 
 enum RelativeDescriptorPos {
-    RD_NONE, //what?
-    RD_PREVIOUS, //Relatove Descriptor position previous - for accumulators
-    RD_CURRENT, //Relatove Descriptor position matching - common cpu-paired
-    RD_FIRST, //Relatove Descriptor position first    - for gpu-only
+    NONE, //what?
+    PREVIOUS, //Relatove Descriptor position previous - for accumulators
+    CURRENT, //Relatove Descriptor position matching - common cpu-paired
+    FIRST, //Relatove Descriptor position first    - for gpu-only
 };
 #define NO_SAMPLER ((VkSampler)(0))
 #define NO_LAYOUT ((VkImageLayout)(0))
@@ -160,7 +161,7 @@ typedef struct ShaderStage {
 } ShaderStage;
 typedef struct DescriptorInfo {
     VkDescriptorType type = VK_DESCRIPTOR_TYPE_SAMPLER;
-    RelativeDescriptorPos relativePos = RD_NONE;
+    RelativeDescriptorPos relativePos = RelativeDescriptorPos::NONE;
     ring<Buffer>* buffers = nullptr;
     ring<Image>* images = nullptr;
     VkSampler imageSampler = 0;
@@ -303,7 +304,42 @@ inline VkExtent2D extent2d(uvec3 ext) {return {u32(ext.x), u32(ext.y)};}
 inline VkExtent3D extent3d(ivec3 ext) {return {u32(ext.x), u32(ext.y), u32(ext.z)};}
 inline VkExtent3D extent3d(uvec3 ext) {return {u32(ext.x), u32(ext.y), u32(ext.z)};}
 
-class Renderer {
+struct CommandBuffer {
+    VkCommandBuffer commandBuffer;
+
+    // has to be stored in here to allow caching
+    VkPipeline CACHED_BOUND_PIPELINE = VK_NULL_HANDLE;
+    VkBuffer CACHED_BOUND_VERTEX_BUFFER = VK_NULL_HANDLE;
+    VkBuffer CACHED_BOUND_INDEX_BUFFER = VK_NULL_HANDLE;
+
+    void cmdBindVertexBuffers(uint32_t firstBinding, uint32_t bindingCount, const VkBuffer* pBuffers, const VkDeviceSize* pOffsets);
+    void cmdBindIndexBuffer(VkBuffer buffer, VkDeviceSize offset, VkIndexType indexType);
+    void cmdBindDescriptorSets(VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t firstSet, uint32_t descriptorSetCount, const VkDescriptorSet* pDescriptorSets, uint32_t dynamicOffsetCount, const uint32_t* pDynamicOffsets);
+    void cmdBindPipe (RasterPipe* pipe);
+    void cmdBindPipe (ComputePipe* pipe);
+    void cmdBindPipeline (VkPipelineBindPoint pipelineBindPoint, VkPipeline pipeline);
+
+    void cmdDraw(u32 vertexCount, u32 instanceCount, u32 firstVertex, u32 firstInstance);
+    void cmdDrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
+    void cmdDispatch(u32 groupCountX, u32 groupCountY, u32 groupCountZ);
+    void cmdBeginRenderPass (RenderPass* rpass);
+    void cmdNextSubpass (RenderPass* rpass);
+    void cmdEndRenderPass (RenderPass* rpass);
+    void cmdPipelineBarrier (VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask,
+                             VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
+                             Buffer buffer);
+    void cmdPipelineBarrier (VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask,
+                             VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
+                             Image image);
+    void cmdPipelineBarrier (VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask);
+    void cmdExplicitTransLayoutBarrier (VkImageLayout srcLayout, VkImageLayout targetLayout,
+                                VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
+                                Image* image);
+    void cmdSetViewport(int width, int height);
+    void cmdSetViewport(VkExtent2D extent);
+};
+
+struct Renderer {
 public:
     //syntactic sugar is bitter
     Renderer() : descriptorBuilder(*this), pipeBuilder(*this), renderPassBuilder(*this) {};
@@ -315,34 +351,9 @@ public:
     bool resized = false;
     Settings settings = {};
 
-    void start_frame(vector<VkCommandBuffer> commandBuffers);
+    void start_frame(vector<CommandBuffer> commandBuffers);
         void present();
-    void end_frame(vector<VkCommandBuffer> commandBuffers);
-
-    void cmdBindVertexBuffers(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount, const VkBuffer* pBuffers, const VkDeviceSize* pOffsets);
-    void cmdBindIndexBuffer(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkIndexType indexType);
-    void cmdBindDescriptorSets(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t firstSet, uint32_t descriptorSetCount, const VkDescriptorSet* pDescriptorSets, uint32_t dynamicOffsetCount, const uint32_t* pDynamicOffsets);
-    void cmdDraw(VkCommandBuffer commandBuffer, u32 vertexCount, u32 instanceCount, u32 firstVertex, u32 firstInstance);
-    void cmdDispatch(VkCommandBuffer commandBuffer, u32 groupCountX, u32 groupCountY, u32 groupCountZ);
-    void cmdBeginRenderPass (VkCommandBuffer commandBuffer, RenderPass* rpass);
-    void cmdNextSubpass (VkCommandBuffer commandBuffer, RenderPass* rpass);
-    void cmdEndRenderPass (VkCommandBuffer commandBuffer, RenderPass* rpass);
-    void cmdBindPipe (VkCommandBuffer commandBuffer, RasterPipe* pipe);
-    void cmdBindPipe (VkCommandBuffer commandBuffer, ComputePipe* pipe);
-    void cmdPipelineBarrier (VkCommandBuffer commandBuffer,
-                             VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask,
-                             VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
-                             Buffer buffer);
-    void cmdPipelineBarrier (VkCommandBuffer commandBuffer,
-                             VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask,
-                             VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
-                             Image image);
-    void cmdPipelineBarrier (VkCommandBuffer commandBuffer, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask);
-    void cmdExplicitTransLayoutBarrier (VkCommandBuffer commandBuffer, VkImageLayout srcLayout, VkImageLayout targetLayout,
-                                VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
-                                Image* image);
-    void cmdSetViewport(VkCommandBuffer commandBuffer, int width, int height);
-    void cmdSetViewport(VkCommandBuffer commandBuffer, VkExtent2D extent);
+    void end_frame(vector<CommandBuffer> commandBuffers);
 
     template<class Elem_T> ring<Buffer> createElemBuffers (Elem_T* vertices, u32 count, u32 buffer_usage = 0);
     template<class Elem_T> ring<Buffer> createElemBuffers (vector<Elem_T> vertices, u32 buffer_usage = 0);
@@ -503,7 +514,7 @@ public:
     void createImageStorages (Image* image,
                                 VkImageType type, VkFormat format, VkImageUsageFlags usage, VmaMemoryUsage vma_usage, VmaAllocationCreateFlags vma_flags, VkImageAspectFlags aspect,
                                 VkExtent3D size, int mipmaps = 1, VkSampleCountFlagBits sample_count = VK_SAMPLE_COUNT_1_BIT);
-    void generateMipmaps (VkCommandBuffer commandBuffer, VkImage image, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, VkImageAspectFlags aspect);
+    void generateMipmaps (CommandBuffer commandBuffer, VkImage image, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, VkImageAspectFlags aspect);
     void createBufferStorages (ring<Buffer>* buffers, VkBufferUsageFlags usage, u32 size, bool host = false);
     void createBufferStorages (Buffer* buffer, VkBufferUsageFlags usage, u32 size, bool host = false);
     void mapBufferStorages (ring<Buffer>* buffers);
@@ -512,19 +523,19 @@ public:
     void createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>*> imgs4views, VkRenderPass renderPass, u32 Width, u32 Height);
     void createFramebuffers (ring<VkFramebuffer>* framebuffers, vector<ring<Image>*> imgs4views, VkRenderPass renderPass, VkExtent2D extent);
     void createCommandPool();
-    void createCommandBuffers (ring<VkCommandBuffer>* commandBuffers, u32 size);
+    void createCommandBuffers (ring<CommandBuffer>* commandBuffers, u32 size);
     void createSyncObjects();
 
     void createImageFromMemorySingleTime(Image* image, const void* source, u32 size);
     // void createBuffer (VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer* buffer, VkDeviceMemory* bufferMemory);
     void copyBufferSingleTime (VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
     void copyBufferSingleTime (VkBuffer srcBuffer, Image* image, uvec3 size);
-    VkCommandBuffer beginSingleTimeCommands();
-    void endSingleTimeCommands (VkCommandBuffer commandBuffer);
+    CommandBuffer beginSingleTimeCommands();
+    void endSingleTimeCommands (CommandBuffer commandBuffer);
     void transitionImageLayoutSingletime (Image* image, VkImageLayout newLayout, int mipmaps = 1);
-    void copyImage (VkExtent3D extent, VkCommandBuffer commandBuffer, Image src, Image dst);
-    void copyWholeImage (VkCommandBuffer commandBuffer, Image src, Image dst);
-    void blitWholeImage (VkCommandBuffer commandBuffer, Image src, Image dst, VkFilter filter);
+    void copyImage (VkCommandBuffer cmdbuf, VkExtent3D extent, Image src, Image dst);
+    void copyWholeImage (VkCommandBuffer cmdbuf, Image src, Image dst);
+    void blitWholeImage (VkCommandBuffer cmdbuf, Image src, Image dst, VkFilter filter);
     void processDeletionQueues();
     void getInstanceLayers();
     void getInstanceExtensions();
@@ -557,8 +568,8 @@ public:
     u32 imageIndex = 0;
 
     //this are still managed by user, but are required to exist
-    ring<VkCommandBuffer>* extraCommandBuffers = {}; //runtime copies. Also does first frame resources
-    ring<VkCommandBuffer>*  mainCommandBuffers = {};
+    ring<CommandBuffer>* extraCommandBuffers = {}; //runtime copies. Also does first frame resources
+    ring<CommandBuffer>*  mainCommandBuffers = {};
 
     ring<VkSemaphore> imageAvailableSemaphores = {}; //to sync presenting with renering  
     ring<VkSemaphore> renderFinishedSemaphores = {}; //to sync renering with presenting
@@ -585,9 +596,9 @@ public:
     void* pNext = 0; //to allow easy expansion
 
 // private:
-    VkPipeline CACHED_BOUND_PIPELINE = VK_NULL_HANDLE;
-    VkBuffer CACHED_BOUND_VERTEX_BUFFER = VK_NULL_HANDLE;
-    VkBuffer CACHED_BOUND_INDEX_BUFFER = VK_NULL_HANDLE;
+    // VkPipeline CACHED_BOUND_PIPELINE = VK_NULL_HANDLE;
+    // VkBuffer CACHED_BOUND_VERTEX_BUFFER = VK_NULL_HANDLE;
+    // VkBuffer CACHED_BOUND_INDEX_BUFFER = VK_NULL_HANDLE;
 };
 
 template<class Elem_T> ring<Buffer> Renderer::createElemBuffers (Elem_T* elements, u32 count, u32 buffer_usage) {

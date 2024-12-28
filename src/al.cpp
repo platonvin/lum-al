@@ -305,7 +305,11 @@ void Lumal::Renderer::processDeletionQueues() {
 
 
 // #include <glm/gtx/string_cast.hpp>
-void Lumal::Renderer::start_frame(vector<VkCommandBuffer> commandBuffers) {
+void Lumal::Renderer::start_frame(vector<CommandBuffer> commandBuffers) {
+    // CACHED_BOUND_PIPELINE = VK_NULL_HANDLE;
+    // CACHED_BOUND_VERTEX_BUFFER = VK_NULL_HANDLE;
+    // CACHED_BOUND_INDEX_BUFFER = VK_NULL_HANDLE;
+
     TRACE();
     // vkWaitForFences (device, 1, &frameInFlightFences.previous(), VK_TRUE, UINT32_MAX);
     vkWaitForFences (device, 1, &frameInFlightFences.current(), VK_TRUE, UINT32_MAX);
@@ -318,10 +322,13 @@ void Lumal::Renderer::start_frame(vector<VkCommandBuffer> commandBuffers) {
         beginInfo.pInheritanceInfo = NULL;
     TRACE();
     for (auto cb : commandBuffers){
-        assert(cb != VK_NULL_HANDLE);
-        vkResetCommandBuffer(cb, 0);
+        assert(cb.commandBuffer != VK_NULL_HANDLE);
+        vkResetCommandBuffer(cb.commandBuffer, 0);
+        cb.CACHED_BOUND_INDEX_BUFFER = VK_NULL_HANDLE;
+        cb.CACHED_BOUND_VERTEX_BUFFER = VK_NULL_HANDLE;
+        cb.CACHED_BOUND_PIPELINE = VK_NULL_HANDLE;
     TRACE();
-        vkBeginCommandBuffer(cb, &beginInfo);
+        vkBeginCommandBuffer(cb.commandBuffer, &beginInfo);
     }
     TRACE();
 
@@ -337,13 +344,13 @@ void Lumal::Renderer::start_frame(vector<VkCommandBuffer> commandBuffers) {
     TRACE();
 
     if(settings.profile){
-        assert(mainCommandBuffers->current() != VK_NULL_HANDLE);
+        assert(mainCommandBuffers->current().commandBuffer != VK_NULL_HANDLE);
         assert(queryPoolTimestamps.current() != VK_NULL_HANDLE);
         // if(iFrame<10){
         //     for(auto& q: queryPoolTimestamps)
         //         vkCmdResetQueryPool ((*mainCommandBuffers).current(), q, 0, timestampCount);
         // } else 
-        vkCmdResetQueryPool ((*mainCommandBuffers).current(), queryPoolTimestamps.current(), 0, timestampCount);
+        vkCmdResetQueryPool ((*mainCommandBuffers).current().commandBuffer, queryPoolTimestamps.current(), 0, timestampCount);
 
         currentTimestamp = 0;
     }
@@ -375,15 +382,22 @@ void Lumal::Renderer::present() {
     }
 }
 
-void Lumal::Renderer::end_frame(vector<VkCommandBuffer> commandBuffers) {
+void Lumal::Renderer::end_frame(vector<CommandBuffer> commandBuffers) {
 TRACE();
     for(auto cb : commandBuffers){
-        vkEndCommandBuffer(cb);
+        vkEndCommandBuffer(cb.commandBuffer);
+        cb.CACHED_BOUND_INDEX_BUFFER = VK_NULL_HANDLE;
+        cb.CACHED_BOUND_VERTEX_BUFFER = VK_NULL_HANDLE;
+        cb.CACHED_BOUND_PIPELINE = VK_NULL_HANDLE;
     }
 TRACE();
     
     vector<VkSemaphore> signalSemaphores = {renderFinishedSemaphores.current()};
     vector<VkSemaphore> waitSemaphores = {imageAvailableSemaphores.current()};
+    vector<VkCommandBuffer> _commandBuffers (commandBuffers.size());
+    for(int i=0; i<commandBuffers.size(); i++){
+        _commandBuffers[i] = commandBuffers[i].commandBuffer;
+    }
 
     vector<VkPipelineStageFlags> waitStages (commandBuffers.size(), VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 
@@ -394,7 +408,7 @@ TRACE();
         submitInfo.pWaitSemaphores = waitSemaphores.data();
         submitInfo.pWaitDstStageMask = waitStages.data();
         submitInfo.commandBufferCount = commandBuffers.size();
-        submitInfo.pCommandBuffers = commandBuffers.data();
+        submitInfo.pCommandBuffers = _commandBuffers.data();
         submitInfo.signalSemaphoreCount = signalSemaphores.size();
         submitInfo.pSignalSemaphores = signalSemaphores.data();
     VK_CHECK (vkQueueSubmit (graphicsQueue, 1, &submitInfo, frameInFlightFences.current()));
@@ -451,14 +465,9 @@ TRACE();
 TRACE();
     processDeletionQueues();
 TRACE();
-
-    CACHED_BOUND_PIPELINE = VK_NULL_HANDLE;
-    CACHED_BOUND_VERTEX_BUFFER = VK_NULL_HANDLE;
-    CACHED_BOUND_INDEX_BUFFER = VK_NULL_HANDLE;
 }
 
-void Lumal::Renderer::cmdPipelineBarrier (VkCommandBuffer commandBuffer,
-                VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask,
+void Lumal::CommandBuffer::cmdPipelineBarrier (VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask,
                 VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
                 Buffer buffer) {
     VkBufferMemoryBarrier 
@@ -480,8 +489,7 @@ void Lumal::Renderer::cmdPipelineBarrier (VkCommandBuffer commandBuffer,
     );
 }
 
-void Lumal::Renderer::cmdPipelineBarrier (VkCommandBuffer commandBuffer,
-                VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask,
+void Lumal::CommandBuffer::cmdPipelineBarrier (VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask,
                 VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
                 Image image) {
     VkImageMemoryBarrier 
@@ -509,7 +517,7 @@ void Lumal::Renderer::cmdPipelineBarrier (VkCommandBuffer commandBuffer,
     );
 }
 
-void Lumal::Renderer::cmdPipelineBarrier (VkCommandBuffer commandBuffer, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask) {
+void Lumal::CommandBuffer::cmdPipelineBarrier (VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask) {
     vkCmdPipelineBarrier (
         commandBuffer,
         srcStageMask, dstStageMask,
@@ -521,7 +529,7 @@ void Lumal::Renderer::cmdPipelineBarrier (VkCommandBuffer commandBuffer, VkPipel
 }
 
 //used for image creation
-void Lumal::Renderer::cmdExplicitTransLayoutBarrier (VkCommandBuffer commandBuffer, VkImageLayout srcLayout, VkImageLayout targetLayout,
+void Lumal::CommandBuffer::cmdExplicitTransLayoutBarrier (VkImageLayout srcLayout, VkImageLayout targetLayout,
                     VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask,
                     Image* image) {
     VkImageMemoryBarrier 
@@ -593,8 +601,8 @@ void Lumal::Renderer::createImageFromMemorySingleTime(Image* image, const void* 
     memcpy (data, source, bufferSize);
     vmaUnmapMemory (VMAllocator, stagingAllocation);
 
-    VkCommandBuffer copyCommandBuffer = beginSingleTimeCommands();
-    cmdExplicitTransLayoutBarrier (copyCommandBuffer, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
+    CommandBuffer copyCommandBuffer = beginSingleTimeCommands();
+    copyCommandBuffer.cmdExplicitTransLayoutBarrier (VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
                                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
                                    VK_ACCESS_NONE, VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
                                    image);
@@ -604,8 +612,8 @@ void Lumal::Renderer::createImageFromMemorySingleTime(Image* image, const void* 
         staging_copy.imageSubresource.baseArrayLayer = 0;
         staging_copy.imageSubresource.mipLevel = 0;
         staging_copy.imageSubresource.layerCount = 1;
-    vkCmdCopyBufferToImage (copyCommandBuffer, stagingBuffer, image->image, VK_IMAGE_LAYOUT_GENERAL, 1, &staging_copy);
-    cmdExplicitTransLayoutBarrier (copyCommandBuffer, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
+    vkCmdCopyBufferToImage (copyCommandBuffer.commandBuffer, stagingBuffer, image->image, VK_IMAGE_LAYOUT_GENERAL, 1, &staging_copy);
+    copyCommandBuffer.cmdExplicitTransLayoutBarrier (VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
                                    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                                    VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
                                    image);
@@ -614,14 +622,14 @@ void Lumal::Renderer::createImageFromMemorySingleTime(Image* image, const void* 
 }
 //slow.
 void Lumal::Renderer::copyBufferSingleTime (VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
-    VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+    CommandBuffer commandBuffer = beginSingleTimeCommands();
     VkBufferCopy copyRegion{};
     copyRegion.size = size;
-    vkCmdCopyBuffer (commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+    vkCmdCopyBuffer (commandBuffer.commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
     endSingleTimeCommands (commandBuffer);
 }
 void Lumal::Renderer::copyBufferSingleTime (VkBuffer srcBuffer, Image* image, uvec3 size) {
-    VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+    CommandBuffer commandBuffer = beginSingleTimeCommands();
     VkBufferImageCopy 
         copyRegion = {};
         copyRegion.imageExtent.width = size.x;
@@ -629,11 +637,11 @@ void Lumal::Renderer::copyBufferSingleTime (VkBuffer srcBuffer, Image* image, uv
         copyRegion.imageExtent.depth = size.z;
         copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         copyRegion.imageSubresource.layerCount = 1;
-    vkCmdCopyBufferToImage (commandBuffer, srcBuffer, (*image).image, VK_IMAGE_LAYOUT_GENERAL, 1, &copyRegion);
+    vkCmdCopyBufferToImage (commandBuffer.commandBuffer, srcBuffer, (*image).image, VK_IMAGE_LAYOUT_GENERAL, 1, &copyRegion);
     endSingleTimeCommands (commandBuffer);
 }
 
-VkCommandBuffer Lumal::Renderer::beginSingleTimeCommands() {
+Lumal::CommandBuffer Lumal::Renderer::beginSingleTimeCommands() {
     VkCommandBufferAllocateInfo 
         allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -647,23 +655,23 @@ VkCommandBuffer Lumal::Renderer::beginSingleTimeCommands() {
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vkBeginCommandBuffer (commandBuffer, &beginInfo);
-    return commandBuffer;
+    return {commandBuffer};
 }
 
-void Lumal::Renderer::endSingleTimeCommands (VkCommandBuffer commandBuffer) {
-    vkEndCommandBuffer (commandBuffer);
+void Lumal::Renderer::endSingleTimeCommands (CommandBuffer commandBuffer) {
+    vkEndCommandBuffer (commandBuffer.commandBuffer);
     VkSubmitInfo 
         submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffer;
+        submitInfo.pCommandBuffers = &commandBuffer.commandBuffer;
     //TODO: change to barrier
     vkQueueSubmit (graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
     vkQueueWaitIdle (graphicsQueue);
-    vkFreeCommandBuffers (device, commandPool, 1, &commandBuffer);
+    vkFreeCommandBuffers (device, commandPool, 1, &commandBuffer.commandBuffer);
 }
 
-void Lumal::Renderer::generateMipmaps (VkCommandBuffer commandBuffer, VkImage image, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, VkImageAspectFlags aspect) {
+void Lumal::Renderer::generateMipmaps (CommandBuffer commandBuffer, VkImage image, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, VkImageAspectFlags aspect) {
     // VkCommandBuffer commandBuffer = begin_Single_Time_Commands();
     VkImageMemoryBarrier 
         barrier{};
@@ -683,7 +691,7 @@ void Lumal::Renderer::generateMipmaps (VkCommandBuffer commandBuffer, VkImage im
         barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        vkCmdPipelineBarrier (commandBuffer,
+        vkCmdPipelineBarrier (commandBuffer.commandBuffer,
             VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
             0, nullptr,
             0, nullptr,
@@ -702,7 +710,7 @@ void Lumal::Renderer::generateMipmaps (VkCommandBuffer commandBuffer, VkImage im
             blit.dstSubresource.mipLevel = i;
             blit.dstSubresource.baseArrayLayer = 0;
             blit.dstSubresource.layerCount = 1;
-        vkCmdBlitImage (commandBuffer,
+        vkCmdBlitImage (commandBuffer.commandBuffer,
             image, VK_IMAGE_LAYOUT_GENERAL,
             image, VK_IMAGE_LAYOUT_GENERAL,
             1, &blit,
@@ -711,7 +719,7 @@ void Lumal::Renderer::generateMipmaps (VkCommandBuffer commandBuffer, VkImage im
                 barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
                 barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
                 barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        vkCmdPipelineBarrier (commandBuffer,
+        vkCmdPipelineBarrier (commandBuffer.commandBuffer,
             VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
             0, nullptr,
             0, nullptr,
@@ -724,7 +732,7 @@ void Lumal::Renderer::generateMipmaps (VkCommandBuffer commandBuffer, VkImage im
         barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    vkCmdPipelineBarrier (commandBuffer,
+    vkCmdPipelineBarrier (commandBuffer.commandBuffer,
         VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
         0, nullptr,
         0, nullptr,
@@ -851,7 +859,7 @@ VkFormat Lumal::Renderer::findSupportedFormat (vector<VkFormat> candidates,
     crash (Failed to find supported format!);
 }
 
-void Lumal::Renderer::cmdSetViewport(VkCommandBuffer commandBuffer, int width, int height){
+void Lumal::CommandBuffer::cmdSetViewport(int width, int height){
     VkViewport 
         viewport = {};
         viewport.x = 0.0f;
@@ -868,17 +876,21 @@ void Lumal::Renderer::cmdSetViewport(VkCommandBuffer commandBuffer, int width, i
         scissor.extent.height = height;
     vkCmdSetScissor (commandBuffer, 0, 1, &scissor);
 }
-void Lumal::Renderer::cmdSetViewport(VkCommandBuffer commandBuffer, VkExtent2D extent){
-    cmdSetViewport(commandBuffer, extent.width, extent.height);
+void Lumal::CommandBuffer::cmdSetViewport(VkExtent2D extent){
+    cmdSetViewport(extent.width, extent.height);
 }
 
-void Lumal::Renderer::cmdDraw(VkCommandBuffer commandBuffer, u32 vertexCount, u32 instanceCount, u32 firstVertex, u32 firstInstance){
+void Lumal::CommandBuffer::cmdDrawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance){
+    vkCmdDrawIndexed(commandBuffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);  
+}
+
+void Lumal::CommandBuffer::cmdDraw(u32 vertexCount, u32 instanceCount, u32 firstVertex, u32 firstInstance){
     vkCmdDraw(commandBuffer, vertexCount, instanceCount, firstVertex, firstInstance);
 }
-void Lumal::Renderer::cmdDispatch(VkCommandBuffer commandBuffer, u32 groupCountX, u32 groupCountY, u32 groupCountZ){
+void Lumal::CommandBuffer::cmdDispatch(u32 groupCountX, u32 groupCountY, u32 groupCountZ){
     vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);
 }
-void Lumal::Renderer::cmdBeginRenderPass(VkCommandBuffer commandBuffer, RenderPass* rpass){
+void Lumal::CommandBuffer::cmdBeginRenderPass(RenderPass* rpass){
     VkRenderPassBeginInfo 
         renderPassInfo = {};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -889,43 +901,45 @@ void Lumal::Renderer::cmdBeginRenderPass(VkCommandBuffer commandBuffer, RenderPa
         renderPassInfo.clearValueCount = rpass->clear_colors.size();
         renderPassInfo.pClearValues = rpass->clear_colors.data();
     vkCmdBeginRenderPass (commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-    cmdSetViewport(commandBuffer, rpass->extent);
+    cmdSetViewport(rpass->extent);
 }
-void Lumal::Renderer::cmdNextSubpass(VkCommandBuffer commandBuffer, RenderPass* rpass){
+void Lumal::CommandBuffer::cmdNextSubpass(RenderPass* rpass){
     vkCmdNextSubpass (commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
 }
-void Lumal::Renderer::cmdEndRenderPass(VkCommandBuffer commandBuffer, RenderPass* rpass){
+void Lumal::CommandBuffer::cmdEndRenderPass(RenderPass* rpass){
     vkCmdEndRenderPass (commandBuffer);
     rpass->framebuffers.move();
 }
 
-void Lumal::Renderer::cmdBindPipe(VkCommandBuffer commandBuffer, RasterPipe* pipe){
+void Lumal::CommandBuffer::cmdBindPipe(RasterPipe* pipe){
     // PLACE_TIMESTAMP(commandBuffer);
+    assert(pipe->line != VK_NULL_HANDLE);
     bool use_cached = false;
     if(CACHED_BOUND_PIPELINE == pipe->line){
         use_cached = true;
     }
     if(not use_cached) {
-        vkCmdBindPipeline (commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe->line);
+        cmdBindPipeline (VK_PIPELINE_BIND_POINT_GRAPHICS, pipe->line);
         vkCmdBindDescriptorSets (commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe->lineLayout, 0, 1, &pipe->sets.current(), 0, 0);
         CACHED_BOUND_PIPELINE = pipe->line;
     }
 }
-void Lumal::Renderer::cmdBindPipe(VkCommandBuffer commandBuffer, ComputePipe* pipe){
+void Lumal::CommandBuffer::cmdBindPipe(ComputePipe* pipe){
     // PLACE_TIMESTAMP(commandBuffer);
+    assert(pipe->line != VK_NULL_HANDLE);
     bool use_cached = false;
     if(CACHED_BOUND_PIPELINE == pipe->line){
         use_cached = true;
     }
     if(not use_cached) {
-        vkCmdBindPipeline (commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipe->line);
+        cmdBindPipeline (VK_PIPELINE_BIND_POINT_COMPUTE, pipe->line);
         vkCmdBindDescriptorSets (commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipe->lineLayout, 0, 1, &pipe->sets.current(), 0, 0);
         CACHED_BOUND_PIPELINE = pipe->line;
     }
 }
 
 void Lumal::Renderer::transitionImageLayoutSingletime (Image* image, VkImageLayout newLayout, int mipmaps) {
-    VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+    CommandBuffer commandBuffer = beginSingleTimeCommands();
     VkImageMemoryBarrier 
         barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -941,7 +955,7 @@ void Lumal::Renderer::transitionImageLayoutSingletime (Image* image, VkImageLayo
         barrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
     vkCmdPipelineBarrier (
-        commandBuffer,
+        commandBuffer.commandBuffer,
         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
         0,
         0, NULL,
@@ -951,26 +965,37 @@ void Lumal::Renderer::transitionImageLayoutSingletime (Image* image, VkImageLayo
     endSingleTimeCommands (commandBuffer);
 }
 
-void Lumal::Renderer::cmdBindVertexBuffers(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount, const VkBuffer* pBuffers, const VkDeviceSize* pOffsets){
+// IMPORTANT: use this instead of native vkCmdBindPipeline
+void Lumal::CommandBuffer::cmdBindPipeline(VkPipelineBindPoint pipelineBindPoint, VkPipeline pipeline){
+    // invalidates caches
+    CACHED_BOUND_INDEX_BUFFER = VK_NULL_HANDLE;
+    CACHED_BOUND_VERTEX_BUFFER = VK_NULL_HANDLE;
+    CACHED_BOUND_PIPELINE = pipeline;
+    vkCmdBindPipeline(commandBuffer, pipelineBindPoint, pipeline);
+}
+
+void Lumal::CommandBuffer::cmdBindVertexBuffers(uint32_t firstBinding, uint32_t bindingCount, const VkBuffer* pBuffers, const VkDeviceSize* pOffsets){
+    assert(pBuffers[0] != VK_NULL_HANDLE);
     bool use_cached = false;
-    if((CACHED_BOUND_VERTEX_BUFFER == pBuffers[0]) and (bindingCount == 1)){
+    if((CACHED_BOUND_VERTEX_BUFFER == pBuffers[0]) and (bindingCount == 1) and (firstBinding == 0) and (pOffsets[0] == 0)){
         use_cached = true;
     }
     if(not use_cached) {
-        vkCmdBindVertexBuffers(commandBuffer, firstBinding, bindingCount, pBuffers, pOffsets);
         CACHED_BOUND_VERTEX_BUFFER = pBuffers[0];
+        vkCmdBindVertexBuffers(commandBuffer, firstBinding, bindingCount, pBuffers, pOffsets);
     }
 }
-void Lumal::Renderer::cmdBindIndexBuffer(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, VkIndexType indexType){
+void Lumal::CommandBuffer::cmdBindIndexBuffer(VkBuffer buffer, VkDeviceSize offset, VkIndexType indexType){
+    assert(buffer != VK_NULL_HANDLE);
     bool use_cached = false;
     if(CACHED_BOUND_INDEX_BUFFER == buffer){
-        use_cached = true;
+        // use_cached = true;
     }
     if(not use_cached) {
         vkCmdBindIndexBuffer(commandBuffer, buffer, offset, indexType);
         CACHED_BOUND_INDEX_BUFFER = buffer;
     }
 }
-void Lumal::Renderer::cmdBindDescriptorSets(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t firstSet, uint32_t descriptorSetCount, const VkDescriptorSet* pDescriptorSets, uint32_t dynamicOffsetCount, const uint32_t* pDynamicOffsets){
+void Lumal::CommandBuffer::cmdBindDescriptorSets(VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t firstSet, uint32_t descriptorSetCount, const VkDescriptorSet* pDescriptorSets, uint32_t dynamicOffsetCount, const uint32_t* pDynamicOffsets){
     vkCmdBindDescriptorSets(commandBuffer, pipelineBindPoint, layout, firstSet, descriptorSetCount, pDescriptorSets, dynamicOffsetCount, pDynamicOffsets);
 }

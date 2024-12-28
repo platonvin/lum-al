@@ -37,11 +37,12 @@ void Lumal::Renderer::createCommandPool() {
     VK_CHECK(vkCreateCommandPool(device, &poolInfo, NULL, &commandPool));
 }
 
-void Lumal::Renderer::createCommandBuffers(ring<VkCommandBuffer>* commandBuffers, u32 size) {
+void Lumal::Renderer::createCommandBuffers(ring<CommandBuffer>* commandBuffers, u32 size) {
     assert(commandBuffers != NULL);
     assert(size > 0);
     
     commandBuffers->allocate(size);
+    vector<VkCommandBuffer> temp_cmdBufs (size);
 
     VkCommandBufferAllocateInfo 
         allocInfo = {};
@@ -50,7 +51,13 @@ void Lumal::Renderer::createCommandBuffers(ring<VkCommandBuffer>* commandBuffers
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         allocInfo.commandBufferCount = commandBuffers->size();
 
-    VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, commandBuffers->data()));
+    VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, temp_cmdBufs.data()));
+
+    for(int i=0; i<size; i++){
+        (*commandBuffers)[i] = {};
+        (*commandBuffers)[i].commandBuffer = temp_cmdBufs[i];
+    }
+
 }
 
 void Lumal::Renderer::createSyncObjects() {
@@ -1161,19 +1168,19 @@ void Lumal::Renderer::setupDescriptor (VkDescriptorSetLayout* dsetLayout, ring<V
             writes[i].descriptorType = descriptions[i].type;
             int descriptor_frame_id = 0;
             switch (descriptions[i].relativePos) {
-                case RD_CURRENT: {
+                case RelativeDescriptorPos::CURRENT: {
                     descriptor_frame_id = frame_i;
                     break;
                 }
-                case RD_PREVIOUS: {
+                case RelativeDescriptorPos::PREVIOUS: {
                     descriptor_frame_id = previous_frame_i;
                     break;
                 }
-                case RD_FIRST: {
+                case RelativeDescriptorPos::FIRST: {
                     descriptor_frame_id = 0;
                     break;
                 }
-                case RD_NONE: {
+                case RelativeDescriptorPos::NONE: {
                     writes[i].descriptorCount = 0;
                     continue;
                 }

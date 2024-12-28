@@ -10,8 +10,8 @@ RasterPipe simple_raster_pipe = {};
 RasterPipe simple_posteffect_pipe = {};
 RenderPass simple_rpass = {};
 ring<Image> simple_inter_image; 
-ring<VkCommandBuffer> mainCommandBuffers = {};
-ring<VkCommandBuffer> extraCommandBuffers = {}; //runtime copies. Also does first frame resources
+ring<CommandBuffer> mainCommandBuffers = {};
+ring<CommandBuffer> extraCommandBuffers = {}; //runtime copies. Also does first frame resources
 
 //this function will (also) be used after swapchain recreation to properly resize window
 std::function<VkResult(void)> createSwapchainDependent = [](){
@@ -47,7 +47,7 @@ TRACE()
         .setLayout(&simple_posteffect_pipe.setLayout)
         .setDescriptorSets(&simple_posteffect_pipe.sets)
         .setDescriptions({
-            {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, RD_FIRST, {/*empty*/}, &simple_inter_image, NO_SAMPLER, VK_IMAGE_LAYOUT_GENERAL, VK_SHADER_STAGE_FRAGMENT_BIT}
+            {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, RelativeDescriptorPos::FIRST, {/*empty*/}, &simple_inter_image, NO_SAMPLER, VK_IMAGE_LAYOUT_GENERAL, VK_SHADER_STAGE_FRAGMENT_BIT}
         })
         .defer();
 TRACE()
@@ -117,19 +117,19 @@ TRACE()
 TRACE()
         render.start_frame({mainCommandBuffers.current()});                
 TRACE()
-            render.cmdBeginRenderPass(mainCommandBuffers.current(), &simple_rpass);
+            mainCommandBuffers.current().cmdBeginRenderPass(&simple_rpass);
 TRACE()
-                render.cmdBindPipe(mainCommandBuffers.current(), &simple_raster_pipe);
+                mainCommandBuffers.current().cmdBindPipe(&simple_raster_pipe);
 TRACE()
-                   render.cmdDraw(mainCommandBuffers.current(), 3, 1, 0, 0);
+                   mainCommandBuffers.current().cmdDraw(3, 1, 0, 0);
 TRACE()
-            render.cmdNextSubpass(mainCommandBuffers.current(), &simple_rpass);
+            mainCommandBuffers.current().cmdNextSubpass(&simple_rpass);
 TRACE()
-                render.cmdBindPipe(mainCommandBuffers.current(), &simple_posteffect_pipe);
+                mainCommandBuffers.current().cmdBindPipe(&simple_posteffect_pipe);
 TRACE()
-                   render.cmdDraw(mainCommandBuffers.current(), 3, 1, 0, 0);
+                   mainCommandBuffers.current().cmdDraw(3, 1, 0, 0);
 TRACE()
-            render.cmdEndRenderPass(mainCommandBuffers.current(), &simple_rpass);
+            mainCommandBuffers.current().cmdEndRenderPass(&simple_rpass);
 TRACE()
         render.end_frame({mainCommandBuffers.current()});
         //you are the one responsible for this, because using "previous" command buffer is quite common
